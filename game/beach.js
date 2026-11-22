@@ -14,21 +14,13 @@
     pierHalf: 1.7, pierX: 247,
     renderPiers: [-171, -100, -29, 42, 113, 184],
     sand: 0.55,
-    // Reference §11: 3 moored boats at piers z 42 (two boats, one on each
-    // side of the pier deck) and z 113 (one boat).
     boats: [
       { x: 243, z: 36.5, yaw: 1.35, color: 0xf2efe8 },
       { x: 243, z: 48.5, yaw: 1.75, color: 0x3cc8cf },
       { x: 243.5, z: 118.5, yaw: 1.5, color: 0xf4bb45 }
     ],
     umbrellas: [0xe47271, 0x3eaaa5, 0xdab55b, 0x42a9a2, 0xf17d6f],
-    // Reference §11: 4 towels (colours below), each with a sunbather on it.
-    // Towel spots match the umbrella line drawn in world.js (ux + 2.2).
     towels: [0xf17d6f, 0x42a9a2, 0xeac45f, 0x7197bc],
-    towelSpots: [
-      { x: 208.2, z: -30 }, { x: 209.7, z: 4 },
-      { x: 211.2, z: 38 }, { x: 212.7, z: 72 }
-    ],
     lifeguard: { x: 211, z: 22 }
   };
 
@@ -49,17 +41,16 @@
       this.cars.push(boat);
       this.boats.push(boat);
     }
-    // Eight beachgoers: 4 lounging on the towels, 4 strolling.
+    // Eight beachgoers: 4 lounging on towels, 4 strolling. The loungers lie
+    // on the towel spots (same layout as the umbrellas in world.js).
     this.beachgoers = [];
     for (var j = 0; j < 8; j++) {
       var lounge = j < 4;
-      var spot = lounge ? BEACH.towelSpots[j] : null;
       this.beachgoers.push({
         id: j, lounge: lounge,
-        x: lounge ? spot.x : 204 + this.r() * 8,
-        z: lounge ? spot.z : -40 + this.r() * 160,
-        yaw: lounge ? Math.PI / 2 : this.r() * Math.PI * 2,
-        speed: 0.7 + this.r() * 0.3,
+        x: lounge ? 208.2 + j * 1.5 : 204 + this.r() * 8,
+        z: lounge ? -30 + j * 34 : -40 + this.r() * 160,
+        yaw: this.r() * Math.PI * 2, speed: 0.7 + this.r() * 0.3,
         dir: this.r() < 0.5 ? 1 : -1, hidden: false,
         color: [0xe47271, 0x3eaaa5, 0xdab55b, 0x42a9a2][j % 4]
       });

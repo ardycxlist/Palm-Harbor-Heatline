@@ -43,10 +43,8 @@
   function applyShotPreset(mode) {
     game.mission.active = true;
     if (mode === 'drive') {
-      // Right lane (x 4.5), like the reference drive frame — not on the
-      // centre line.
-      moveSedanTo(4.5, 20);
-      game.player.x = 4.5; game.player.z = 20;
+      moveSedanTo(0, 20);
+      game.player.x = 0; game.player.z = 20;
       game.toggleCar();
       shotSpeedTarget = 10; // 40 KM/H on the HUD
     } else if (mode === 'mission') {
@@ -59,39 +57,29 @@
       game.clock = 19 + 31 / 60;
       game.wantedKills = 12; game.casualties = 12;
       game.search = 1; game.heat = 1;
-      // Start south (z -60) so the 240-tick warm-up drive ends in OLD
-      // QUARTER (z ~22), matching the reference night frame — the old
-      // start at z 50 drifted north into PORT SOL.
-      moveSedanTo(0, -60);
-      game.player.x = 0; game.player.z = -60;
+      moveSedanTo(0, 50);
+      game.player.x = 0; game.player.z = 50;
       game.toggleCar();
       shotSpeedTarget = 20.5; // 82 KM/H on the HUD
-      // Far chase camera (zoom 23): like the reference night frame, the
-      // car reads small, the intersection reads wide, and the heli cones
-      // land on the car as narrow beams instead of filling the lens.
-      input.zoom = 23;
       var car = game.getCar();
       // Warm-up: let police cars, foot officers and helis arrive.
       for (var i = 0; i < 240; i++) {
         game.update(1 / 60, { forward: true });
       }
       if (car) { car.speed = shotSpeedTarget; car.yaw = Math.PI / 2; }
-      game.shotContext = 'E / ACT — ROBBERY / rob the store';
-      // Stage the formation helis at their slots: the 240-tick warm-up is
-      // too short for them to fly in from the patrol route, and a heli
-      // still 100+ units out draws a 100+ long cone and a 2x-wide pool.
-      // (Same staging idea as the warm-up itself: the steady state the
-      // game reaches once the formation converges.)
-      if (game.helis) {
-        var p = game.player;
-        var fx = Math.cos(p.yaw), fz = Math.sin(p.yaw);
-        var offs = [[fx * 62, -fz * 62], [-fx * 62, fz * 62], [-fz * 72, -fx * 72]];
-        for (var hi2 = 0; hi2 < 3 && hi2 < game.helis.length; hi2++) {
-          var h2 = game.helis[hi2];
-          h2.x = p.x + offs[hi2][0]; h2.z = p.z + offs[hi2][1]; h2.y = 42;
-          h2.speed = 20; h2.mode = 'follow'; h2.active = true; h2.hidden = false;
+      // The warm-up drive heads +z out of OLD QUARTER; put the car back on
+      // the x=0 road at z=50 so the shot stays in OLD QUARTER.
+      if (car) { car.x = 0; car.z = 50; car.yaw = Math.PI / 2; }
+      game.player.x = 0; game.player.z = 50; game.player.yaw = Math.PI / 2;
+      // Stage the follow helis directly into their formation slots so the
+      // spotlights are in frame from the first screenshot tick.
+      for (var hi = 0; hi < game.helis.length; hi++) {
+        var h = game.helis[hi];
+        if (h.mode === 'follow' && h.formationTarget) {
+          h.x = h.formationTarget.x; h.z = h.formationTarget.z; h.y = 31;
         }
       }
+      game.shotContext = 'E / ACT — ROBBERY / rob the store';
     }
     // city: default spawn, on foot, 16:24 — nothing to change.
   }

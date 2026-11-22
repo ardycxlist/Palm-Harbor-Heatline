@@ -12,15 +12,15 @@
     buildingAt: { x: 170, z: 42 },
     pad: { x0: 160, x1: 183, z0: 33, z1: 51 },
     entrance: { z0: 39, z1: 45 },
-    // Reference §13: 10 car bays in two rows of 5 (each 3.4x6.6); the
-    // north row (z 47.8) faces south and the south row (z 36.2) faces north.
+    // 10 car bays in two rows of 5 (3.4 x 6.6 each): the north row faces
+    // south (yaw PI), the south row faces north (yaw 0) — reference §14.
     carBays: [
-      { x: 166.7, z: 36.2, yaw: Math.PI / 2 }, { x: 170.1, z: 36.2, yaw: Math.PI / 2 },
-      { x: 173.5, z: 36.2, yaw: Math.PI / 2 }, { x: 176.9, z: 36.2, yaw: Math.PI / 2 },
-      { x: 180.3, z: 36.2, yaw: Math.PI / 2 },
-      { x: 166.7, z: 47.8, yaw: -Math.PI / 2 }, { x: 170.1, z: 47.8, yaw: -Math.PI / 2 },
-      { x: 173.5, z: 47.8, yaw: -Math.PI / 2 }, { x: 176.9, z: 47.8, yaw: -Math.PI / 2 },
-      { x: 180.3, z: 47.8, yaw: -Math.PI / 2 }
+      { x: 166.7, z: 36.2, yaw: Math.PI }, { x: 170.1, z: 36.2, yaw: Math.PI },
+      { x: 173.5, z: 36.2, yaw: Math.PI }, { x: 176.9, z: 36.2, yaw: Math.PI },
+      { x: 180.3, z: 36.2, yaw: Math.PI },
+      { x: 166.7, z: 47.8, yaw: 0 }, { x: 170.1, z: 47.8, yaw: 0 },
+      { x: 173.5, z: 47.8, yaw: 0 }, { x: 176.9, z: 47.8, yaw: 0 },
+      { x: 180.3, z: 47.8, yaw: 0 }
     ],
     bikeBays: [
       { x: 161.9, z: 36.2, yaw: Math.PI / 2 }, { x: 161.9, z: 42, yaw: Math.PI / 2 },
@@ -71,7 +71,8 @@
       var bay = PARKING.bikeBays[k];
       bikes[k].x = bay.x; bikes[k].z = bay.z; bikes[k].yaw = bay.yaw;
     }
-    // 5 nearest parked cars into the car bays.
+    // 5 nearest parked cars into the car bays, alternating rows so the lot
+    // fills evenly (north 1, south 1, north 2, south 2, north 3).
     var parked = [];
     for (var m = 0; m < this.cars.length; m++) {
       var pc = this.cars[m];
@@ -80,8 +81,9 @@
       }
     }
     parked.sort(function (a, b2) { return a.d - b2.d; });
+    var fillOrder = [0, 5, 1, 6, 2];
     for (var n = 0; n < Math.min(5, parked.length); n++) {
-      var cb = PARKING.carBays[n];
+      var cb = PARKING.carBays[fillOrder[n]];
       parked[n].car.x = cb.x; parked[n].car.z = cb.z; parked[n].car.yaw = cb.yaw;
     }
   };
