@@ -28,11 +28,25 @@
   var saveFlashT = 0, hurtFlashT = 0, hitT = 0;
 
   // ---------- screenshot presets (deterministic states) ----------
+  var shotSpeedTarget = 0;
+  function moveSedanTo(x, z) {
+    // The courier sedan spawns parked at (19, 6.5); move the car itself onto
+    // the x=0 road so it can drive straight without hitting buildings.
+    var sedan = null;
+    for (var i = 0; i < game.cars.length; i++) {
+      if (game.cars[i].x === 19 && game.cars[i].z === 6.5) { sedan = game.cars[i]; break; }
+    }
+    if (!sedan) sedan = game.cars[0];
+    sedan.x = x; sedan.z = z; sedan.yaw = Math.PI / 2; sedan.speed = 0;
+    return sedan;
+  }
   function applyShotPreset(mode) {
     game.mission.active = true;
     if (mode === 'drive') {
-      game.player.x = 19; game.player.z = 6.5;
+      moveSedanTo(0, 20);
+      game.player.x = 0; game.player.z = 20;
       game.toggleCar();
+      shotSpeedTarget = 10; // 40 KM/H on the HUD
     } else if (mode === 'mission') {
       game.player.x = 17; game.player.z = 10;
       game.player.yaw = Math.PI / 2;
@@ -43,16 +57,17 @@
       game.clock = 19 + 31 / 60;
       game.wantedKills = 12; game.casualties = 12;
       game.search = 1; game.heat = 1;
-      game.player.x = 19; game.player.z = 50;
+      moveSedanTo(0, 50);
+      game.player.x = 0; game.player.z = 50;
       game.toggleCar();
+      shotSpeedTarget = 20.5; // 82 KM/H on the HUD
       var car = game.getCar();
-      if (car) { car.speed = 20.5; car.yaw = Math.PI / 2; game.player.yaw = Math.PI / 2; }
       // Warm-up: let police cars, foot officers and helis arrive.
       for (var i = 0; i < 240; i++) {
         game.move(1 / 60, { forward: true });
         game.update(1 / 60);
       }
-      if (car) { car.speed = 20.5; }
+      if (car) { car.speed = shotSpeedTarget; car.yaw = Math.PI / 2; }
       game.shotContext = 'E / ACT — ROBBERY / rob the store';
     }
     // city: default spawn, on foot, 16:24 — nothing to change.
@@ -509,6 +524,7 @@
     var dt = Math.min((t - lastT) / 1000, 0.1);
     lastT = t;
     if (!paused && $('startOverlay').classList.contains('hidden')) {
+      if (shotMode === 'drive' || shotMode === 'night') input.forward = true;
       acc += dt;
       var steps = 0;
       while (acc >= 1 / 60 && steps < 6) {
@@ -518,6 +534,11 @@
         steps++;
       }
       if (steps === 6) acc = 0;
+      // Hold the screenshot drive speed (police rams and drag would vary it).
+      if (shotSpeedTarget > 0) {
+        var sc = game.getCar();
+        if (sc && sc.speed > 0) sc.speed = shotSpeedTarget;
+      }
       drainEvents();
       audio.update(game, dt);
     }

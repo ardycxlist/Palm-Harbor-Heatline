@@ -634,7 +634,7 @@
     }
 
     // ---------- camera state ----------
-    var cam = { yaw: game.player.yaw, pitch: 0.42, dist: 9, lookIdle: 0 };
+    var cam = { yaw: game.player.yaw, pitch: 0.22, dist: 9, lookIdle: 0 };
     var plnNightF = 0;
     var frames = 0, presentAcc = 0, fps = 30;
     var lastPresent = 0;
