@@ -67,6 +67,11 @@
 
   function createWorld(game, canvas) {
     var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    // Physical light units (r155+): the heli SpotLight's intensity 210 is
+    // candela with 1/d^2 falloff, so it lights a modest pool instead of
+    // blasting the whole city (legacy mode has no distance falloff for it).
+    // Directional sun + hemisphere are unaffected by this flag.
+    if ('useLegacyLights' in renderer) renderer.useLegacyLights = false;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(canvas.clientWidth || 1280, canvas.clientHeight || 720, false);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1269,7 +1274,7 @@
       spot.visible = false;
       scene.add(spot);
       var cone = new THREE.Mesh(new THREE.ConeGeometry(4.5, 1, 16, 1, true),
-        new THREE.MeshBasicMaterial({ color: 0xffedb7, transparent: true, opacity: 0.15, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+        new THREE.MeshBasicMaterial({ color: 0xffedb7, transparent: true, opacity: 0.15, side: THREE.FrontSide, depthWrite: false, blending: THREE.AdditiveBlending }));
       cone.visible = false;
       scene.add(cone);
       var disk = new THREE.Mesh(new THREE.CircleGeometry(4.5, 20),
@@ -1760,8 +1765,18 @@
             ud.ring.scale.setScalar(baseR / 4.5);
             ud.spot.position.set(h.x, h.y - 1, h.z);
             ud.spotTarget.position.set(tx, 0, tz);
-            // Intensity is split evenly when 2-3 helis shine together.
-            ud.spot.intensity = 210 * (game.litShare || 1);
+            // Intensity is split evenly when 2-3 helis shine together
+            // (reference §9: "dibagi rata supaya tidak menumpuk") — the
+            // light, the cone, the disc and the ring all share one budget,
+            // so three overlapping beams total 210 / 0.15 / 0.27 / 0.5.
+            var share = game.litShare || 1;
+            ud.spot.intensity = 210 * share;
+            // The cone is one beam per heli — the beams do not share a
+            // spot, so each keeps its full 0.15. The disc and ring do
+            // share the target spot, so they split like the light.
+            ud.cone.material.opacity = 0.15;
+            ud.disk.material.opacity = 0.27 * share;
+            ud.ring.material.opacity = 0.5 * share;
           } else {
             ud.spot.intensity = 0;
           }
