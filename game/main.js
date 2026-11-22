@@ -64,8 +64,7 @@
       var car = game.getCar();
       // Warm-up: let police cars, foot officers and helis arrive.
       for (var i = 0; i < 240; i++) {
-        game.move(1 / 60, { forward: true });
-        game.update(1 / 60);
+        game.update(1 / 60, { forward: true });
       }
       if (car) { car.speed = shotSpeedTarget; car.yaw = Math.PI / 2; }
       game.shotContext = 'E / ACT — ROBBERY / rob the store';
@@ -528,8 +527,7 @@
       acc += dt;
       var steps = 0;
       while (acc >= 1 / 60 && steps < 6) {
-        game.move(1 / 60, input);
-        game.update(1 / 60);
+        game.update(1 / 60, input);
         acc -= 1 / 60;
         steps++;
       }

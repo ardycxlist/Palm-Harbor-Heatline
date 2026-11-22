@@ -392,8 +392,10 @@
   };
   Game.prototype.toggleCar = function () {
     var p = this.player;
+    if (this.paused) return false;
     if (p.vehicle !== null && p.vehicle !== undefined) {
       var car = this.cars[p.vehicle];
+      if (car && Math.abs(car.speed) > 5) return false; // cannot bail out of a moving car
       if (car) { car.driver = false; }
       p.vehicle = null; p.speed = 0;
       this.events.push({ kind: 'exit', t: this.time });
@@ -402,7 +404,7 @@
     var car = this.nearestCar(4.5);
     if (!car) return false;
     if (car.parked) { car.parked = false; }
-    if (!car.owned && !car.claimed) { car.claimed = true; car.stolen = true; }
+    if (!car.owned && !car.claimed) { car.claimed = true; car.stolen = true; this.heat = Math.max(this.heat, 1); }
     car.driver = true;
     p.vehicle = car.id; p.yaw = car.yaw; p.speed = 0;
     if (car.fuel === undefined) car.fuel = 100;
@@ -424,6 +426,7 @@
   // ---------- combat ----------
   Game.prototype.shoot = function () {
     var p = this.player;
+    if (this.paused) return false;
     var w = WEAPONS[p.weapon];
     if (this.fireCooldown > 0 || this.reloadTimer > 0) return false;
     if (p.weapon === 0) {
@@ -486,6 +489,22 @@
     this.reloadTimer = 1.35;
     return true;
   };
+  // Test-driver verbs: thin delegates over the shell's own actions.
+  Game.prototype.action = function (name) {
+    if (this.paused) return false;
+    if (name === 'enter') return this.toggleCar();
+    if (name === 'interact') return this.interact();
+    if (name === 'reload') return this.reload();
+    if (name === 'jump') {
+      var p = this.player;
+      if (p.vehicle !== null && p.vehicle !== undefined) return false;
+      if (!p.grounded) return false;
+      p.vy = 6.3; p.grounded = false;
+      return true;
+    }
+    return false;
+  };
+  Game.prototype.fire = function () { return this.shoot(); };
   Game.prototype.damage = function (amount, source) {
     var p = this.player;
     if (this.dead || this.hurtCooldown > 0) return;
@@ -738,8 +757,28 @@
   };
 
   // ---------- main update ----------
-  Game.prototype.update = function (dt) {
+  Game.prototype.update = function (dt, input) {
     dt = Math.min(dt, 0.05);
+    if (this.paused) return;
+    // Drive movement from an input object. The shell passes its live input;
+    // a test driver passes world-axis moveX/moveZ (translated here into the
+    // yaw-relative frame move() reads). With no input, move with an empty
+    // one so gravity, stamina and vehicle drag still tick.
+    var src = input || {};
+    var p = this.player;
+    var t = {
+      forward: !!src.forward, back: !!src.back, left: !!src.left, right: !!src.right,
+      sprint: !!src.sprint, jump: !!src.jump, handbrake: !!src.handbrake
+    };
+    if (src.moveX || src.moveZ) {
+      var cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
+      var fwd = (src.moveX || 0) * cy + (src.moveZ || 0) * sy;
+      var str = -(src.moveX || 0) * sy + (src.moveZ || 0) * cy;
+      if (fwd > 0.5) t.forward = true; else if (fwd < -0.5) t.back = true;
+      if (str > 0.5) t.right = true; else if (str < -0.5) t.left = true;
+    }
+    this.move(dt, t);
+    if (src.fire) this.shoot();
     this.time += dt;
     this.clock += dt / 70;
     if (this.clock >= 24) { this.clock -= 24; this.day++; }

@@ -150,8 +150,8 @@
   };
 
   var prevUpdate = PH.Game.prototype.update;
-  PH.Game.prototype.update = function (dt) {
-    var out = prevUpdate.call(this, dt);
+  PH.Game.prototype.update = function (dt, input) {
+    var out = prevUpdate.call(this, dt, input);
     // Cooldowns tick down (and are saved).
     if ((this.extras.crew.nico || 0) > 0) this.extras.crew.nico = Math.max(0, this.extras.crew.nico - dt);
     if ((this.extras.crew.plate || 0) > 0) this.extras.crew.plate = Math.max(0, this.extras.crew.plate - dt);

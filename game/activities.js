@@ -140,8 +140,8 @@
   };
 
   var prevUpdate = PH.Game.prototype.update;
-  PH.Game.prototype.update = function (dt) {
-    var out = prevUpdate.call(this, dt);
+  PH.Game.prototype.update = function (dt, input) {
+    var out = prevUpdate.call(this, dt, input);
     this.ensureActivities();
     var p = this.player;
     // Robbery hold: stay within 5 units on foot for 4s.

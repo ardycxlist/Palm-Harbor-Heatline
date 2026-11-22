@@ -182,8 +182,8 @@
 
   // Wire into the Game: emergency runs every tick once attached.
   var prevUpdate = PH.Game.prototype.update;
-  PH.Game.prototype.update = function (dt) {
-    var out = prevUpdate.call(this, dt);
+  PH.Game.prototype.update = function (dt, input) {
+    var out = prevUpdate.call(this, dt, input);
     if (this.emergency) this.emergency.update(dt);
     return out;
   };
