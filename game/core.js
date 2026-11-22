@@ -47,8 +47,10 @@
     if (x > 60) return 'CORAL HEIGHTS';
     return 'OLD QUARTER';
   }
-  // Building body palette, used in order per building (pastel Vice-City look).
-  var PALETTE = [0xf2b8c6, 0xf6e3c8, 0xf4f1e8, 0xa8c8d8, 0xf2c9a0, 0xd8b8d8, 0xb8d8c8, 0xe8d8a8];
+  // Building body palette (reference §3: pastel hangat, 8 warna).
+  var PALETTE = [0xf0b89a, 0xe7c6a7, 0xc5ddd0, 0xf1d5b1, 0xe4a3ad, 0xb2c6d3, 0xe7e0ca, 0xb6d5ca];
+  // Tower glass palette (reference §3, menara tinggi > 33).
+  var TOWER_GLASS = [0x3e708a, 0x527794, 0x426286, 0x468b98];
   var DISTRICT_ACCENT = {
     'OLD QUARTER': 0xd88145, 'GLASS DISTRICT': 0x3eaaa5, 'CORAL HEIGHTS': 0xe47271,
     'LITTLE PALM': 0x72b45c, 'PORT SOL': 0x48678d, 'SUNSTRAND BEACH': 0xf4bb45
@@ -63,12 +65,15 @@
         var z0 = ROADS[gz] + 9, z1 = ROADS[gz + 1] - 9;
         var cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
         var d = district(cx, cz);
-        var isPark = r() < 0.14;
+        // Reference §3: total ±131 buildings across 36 blocks — only ~3
+        // blocks are park/market, so the park rate stays low.
+        var isPark = r() < 0.05;
         blocks.push({ x0: x0, x1: x1, z0: z0, z1: z1, cx: cx, cz: cz, district: d, park: isPark });
         if (isPark) { parks.push({ cx: cx, cz: cz, district: d }); continue; }
-        var n = 1 + Math.floor(r() * 3);
-        // Mission steps and contacts must stay reachable on foot: never let
-        // a building footprint cover one (2 units of clearance).
+        // Reference §3: 4 buildings per block (2x2), footprint 13-16.2.
+        // Heights by block kind: towers 27-78 (GLASS DISTRICT), homes 8-28,
+        // Port Sol warehouses 7-13. Mission steps, contacts and the heli
+        // patrol route must stay reachable: never let a footprint cover one.
         var PROTECTED = [];
         for (var mi = 0; mi < MISSIONS.length; mi++)
           for (var si = 0; si < MISSIONS[mi].steps.length; si++)
@@ -77,36 +82,57 @@
         // The air patrol route (air-support.js) must stay clear of roofs too.
         var route = PH.AIR_PATROL_ROUTE || [];
         for (var ri = 0; ri < route.length; ri++) PROTECTED.push({ x: route[ri][0], z: route[ri][1] });
-        for (var k = 0; k < n; k++) {
-          var w, dep, bx, bz, placed = false;
-          for (var attempt = 0; attempt < 10 && !placed; attempt++) {
-            w = 14 + r() * 22; dep = 14 + r() * 22;
-            bx = x0 + 4 + r() * Math.max(1, (x1 - x0 - 8 - w));
-            bz = z0 + 4 + r() * Math.max(1, (z1 - z0 - 8 - dep));
-            placed = true;
-            for (var pi = 0; pi < PROTECTED.length; pi++) {
-              var pp = PROTECTED[pi];
-              if (pp.x > bx - 2 && pp.x < bx + w + 2 && pp.z > bz - 2 && pp.z < bz + dep + 2) { placed = false; break; }
+        for (var qx = 0; qx < 2; qx++) {
+          for (var qz = 0; qz < 2; qz++) {
+            var w, dep, bx, bz, placed = false;
+            for (var attempt = 0; attempt < 20 && !placed; attempt++) {
+              w = 13 + r() * 3.2; dep = 13 + r() * 3.2;
+              bx = x0 + qx * 23 + 2 + r() * Math.max(1, 23 - 4 - w);
+              bz = z0 + qz * 23 + 2 + r() * Math.max(1, 23 - 4 - dep);
+              placed = true;
+              for (var pi = 0; pi < PROTECTED.length; pi++) {
+                var pp = PROTECTED[pi];
+                if (pp.x > bx - 1.5 && pp.x < bx + w + 1.5 && pp.z > bz - 1.5 && pp.z < bz + dep + 1.5) { placed = false; break; }
+              }
             }
+            if (!placed) continue;
+            var h;
+            if (d === 'GLASS DISTRICT') h = 27 + r() * 51;
+            else if (d === 'PORT SOL') h = 7 + r() * 6;
+            else if (r() < 0.12) h = 27 + r() * 23;
+            else h = 8 + r() * 20;
+            var b = {
+              index: bi++, x: bx, z: bz, w: w, d: dep, h: h,
+              minX: bx, maxX: bx + w, minZ: bz, maxZ: bz + dep,
+              color: PALETTE[Math.floor(r() * PALETTE.length)], district: d,
+              tower: h > 33, warehouse: d === 'PORT SOL' && h < 14,
+              lit: 0.18 + r() * 0.22, roof: r(),
+              crown: 2.4 + r() * 6, tank: r() < 0.4, awning: r() < 0.5
+            };
+            buildings.push(b);
           }
-          if (!placed) continue;
-          var h = 8 + r() * r() * 42;
-          if (d === 'PORT SOL' && h < 14) h = 8 + r() * 5; // warehouse
-          var b = {
-            index: bi++, x: bx, z: bz, w: w, d: dep, h: h,
-            minX: bx, maxX: bx + w, minZ: bz, maxZ: bz + dep,
-            color: PALETTE[bi % PALETTE.length], district: d,
-            tower: h > 33, warehouse: d === 'PORT SOL' && h < 14,
-            lit: 0.18 + r() * 0.22, roof: r()
-          };
-          buildings.push(b);
         }
-        // Four palms per block: two corners + two sides.
-        props.push({ kind: 'palm', x: x0 + 3, z: z0 + 3, h: 5.05 + r() * 1.9 });
-        props.push({ kind: 'palm', x: x1 - 3, z: z1 - 3, h: 5.05 + r() * 1.9 });
-        props.push({ kind: 'palm', x: (x0 + x1) / 2, z: z0 + 3, h: 5.05 + r() * 1.9 });
-        props.push({ kind: 'palm', x: x0 + 3, z: (z0 + z1) / 2, h: 5.05 + r() * 1.9 });
+        // Four palms per block: two corners + two sides. Each leans a little
+        // (reference §7: lean 0.26-0.57) and most sit in a square planter.
+        props.push({ kind: 'palm', x: x0 + 3, z: z0 + 3, h: 5.05 + r() * 1.9, lean: 0.26 + r() * 0.31, leanDir: r() * Math.PI * 2, planter: r() < 0.8 });
+        props.push({ kind: 'palm', x: x1 - 3, z: z1 - 3, h: 5.05 + r() * 1.9, lean: 0.26 + r() * 0.31, leanDir: r() * Math.PI * 2, planter: r() < 0.8 });
+        props.push({ kind: 'palm', x: (x0 + x1) / 2, z: z0 + 3, h: 5.05 + r() * 1.9, lean: 0.26 + r() * 0.31, leanDir: r() * Math.PI * 2, planter: r() < 0.8 });
+        props.push({ kind: 'palm', x: x0 + 3, z: (z0 + z1) / 2, h: 5.05 + r() * 1.9, lean: 0.26 + r() * 0.31, leanDir: r() * Math.PI * 2, planter: r() < 0.8 });
       }
+    }
+    // The Sunstrand lot (parking.js) demolishes building index 87: make sure
+    // index 87 is the building nearest the lot at (170, 42), so the visual
+    // bake and the collision removal agree on the same building.
+    var b87 = null, bNear = null, bd = 1e9;
+    for (var i2 = 0; i2 < buildings.length; i2++) {
+      if (buildings[i2].index === 87) b87 = buildings[i2];
+      var ccx = (buildings[i2].minX + buildings[i2].maxX) / 2;
+      var ccz = (buildings[i2].minZ + buildings[i2].maxZ) / 2;
+      var dd = (ccx - 170) * (ccx - 170) + (ccz - 42) * (ccz - 42);
+      if (dd < bd) { bd = dd; bNear = buildings[i2]; }
+    }
+    if (b87 && bNear && b87 !== bNear) {
+      var tmp = b87.index; b87.index = bNear.index; bNear.index = tmp;
     }
     return { seed: seed, buildings: buildings, blocks: blocks, parks: parks, props: props };
   }
@@ -281,7 +307,8 @@
       driver: false, parked: true, fuel: 100, throttle: 0
     });
     var types = ['sedan', 'sedan', 'sedan', 'sport', 'van', 'sedan', 'taxi', 'sedan'];
-    var colors = [0xe8e4da, 0xc8ccd4, 0x8a94a8, 0x5a6b7c, 0xd8b8a8, 0x9fb8a8, 0xfebd46, 0xb8a8c8];
+    // Reference §8: car paint comes from the PAINT palette.
+    var colors = [0x3cc8cf, 0xf4bb45, 0xe46c70, 0xede4cf, 0x567eb8, 0x4d6967, 0x9c72b0, 0xccd0d3, 0x353b46];
     for (var i = 2; i < nCars; i++) {
       var road = ROADS[Math.floor(r() * ROADS.length)];
       var along = -192 + r() * 384;
@@ -299,6 +326,11 @@
         cruise: 11 + r() * 3, lane: (r() < 0.5 ? -3.4 : 3.4), route: null, routeI: 0
       });
     }
+    // Reference §10: citizens wear the PAINT palette, pants from their own
+    // palette, 4 skin tones, 5 hair colours; height scale 0.91-1.07.
+    var pedPants = [0x314157, 0x434958, 0x676477, 0x385c64, 0x8f775f];
+    var pedSkins = [0xc68c66, 0x734933, 0xe2b38d, 0xa66b46];
+    var pedHair = [0x34313d, 0x543a3c, 0x84624f, 0x272d36, 0xcc925e];
     for (var j = 0; j < nPeds; j++) {
       var roadX = ROADS[Math.floor(r() * ROADS.length)];
       var roadZ = ROADS[Math.floor(r() * ROADS.length)];
@@ -307,7 +339,8 @@
         id: j, x: onXRoad ? roadX + (r() < 0.5 ? -7.5 : 7.5) : -210 + r() * 420,
         z: onXRoad ? -210 + r() * 420 : roadZ + (r() < 0.5 ? -7.5 : 7.5),
         yaw: r() * Math.PI * 2, speed: 0.49, fear: 0, size: 0.91 + (j % 5) * 0.041,
-        color: colors[Math.floor(r() * colors.length)], skin: [0xb9744e, 0xd8a878, 0x8a5a3c][j % 3],
+        color: colors[Math.floor(r() * colors.length)],
+        pants: pedPants[j % 5], skin: pedSkins[j % 4], hair: pedHair[j % 5],
         down: false, wait: r() * 3
       });
     }
@@ -975,6 +1008,7 @@
   // ---------- exports ----------
   PH.clamp = clamp; PH.dist = dist; PH.lerp = lerp; PH.angle = angle; PH.rng = rng;
   PH.ROADS = ROADS; PH.district = district; PH.PALETTE = PALETTE;
+  PH.TOWER_GLASS = TOWER_GLASS; PH.DISTRICT_ACCENT = DISTRICT_ACCENT;
   PH.DISTRICT_ACCENT = DISTRICT_ACCENT;
   PH.makeCity = makeCity; PH.CONTACTS = CONTACTS; PH.MISSIONS = MISSIONS;
   PH.CHECKPOINT_COLORS = CHECKPOINT_COLORS; PH.WEAPONS = WEAPONS;

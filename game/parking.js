@@ -12,10 +12,15 @@
     buildingAt: { x: 170, z: 42 },
     pad: { x0: 160, x1: 183, z0: 33, z1: 51 },
     entrance: { z0: 39, z1: 45 },
+    // Reference §13: 10 car bays in two rows of 5 (each 3.4x6.6); the
+    // north row (z 47.8) faces south and the south row (z 36.2) faces north.
     carBays: [
-      { x: 166.7, z: 36.2, yaw: Math.PI }, { x: 170.1, z: 36.2, yaw: Math.PI },
-      { x: 173.5, z: 36.2, yaw: Math.PI }, { x: 176.9, z: 47.8, yaw: 0 },
-      { x: 180.3, z: 47.8, yaw: 0 }
+      { x: 166.7, z: 36.2, yaw: Math.PI / 2 }, { x: 170.1, z: 36.2, yaw: Math.PI / 2 },
+      { x: 173.5, z: 36.2, yaw: Math.PI / 2 }, { x: 176.9, z: 36.2, yaw: Math.PI / 2 },
+      { x: 180.3, z: 36.2, yaw: Math.PI / 2 },
+      { x: 166.7, z: 47.8, yaw: -Math.PI / 2 }, { x: 170.1, z: 47.8, yaw: -Math.PI / 2 },
+      { x: 173.5, z: 47.8, yaw: -Math.PI / 2 }, { x: 176.9, z: 47.8, yaw: -Math.PI / 2 },
+      { x: 180.3, z: 47.8, yaw: -Math.PI / 2 }
     ],
     bikeBays: [
       { x: 161.9, z: 36.2, yaw: Math.PI / 2 }, { x: 161.9, z: 42, yaw: Math.PI / 2 },

@@ -21,7 +21,7 @@
     sprint: false, jump: false, handbrake: false,
     lookDX: 0, lookDY: 0, zoom: 0
   };
-  var zoomLevel = 0; // 0 = auto (9 on foot, 13 in car)
+  var zoomLevel = 0; // 0 = auto (8 on foot, 10.5 in car)
   var paused = false;
   var lastT = 0, acc = 0;
   var toastCount = 0;
@@ -57,8 +57,11 @@
       game.clock = 19 + 31 / 60;
       game.wantedKills = 12; game.casualties = 12;
       game.search = 1; game.heat = 1;
-      moveSedanTo(0, 50);
-      game.player.x = 0; game.player.z = 50;
+      // Start south (z -60) so the 240-tick warm-up drive ends in OLD
+      // QUARTER (z ~22), matching the reference night frame — the old
+      // start at z 50 drifted north into PORT SOL.
+      moveSedanTo(0, -60);
+      game.player.x = 0; game.player.z = -60;
       game.toggleCar();
       shotSpeedTarget = 20.5; // 82 KM/H on the HUD
       var car = game.getCar();
