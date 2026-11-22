@@ -355,7 +355,7 @@
 
   Game.prototype.move = function (dt, input) {
     var p = this.player;
-    if (!p.vehicle) { this.footMove(dt, input); return; }
+    if (p.vehicle === null || p.vehicle === undefined) { this.footMove(dt, input); return; }
     var car = this.cars[p.vehicle];
     if (!car) { p.vehicle = null; this.footMove(dt, input); return; }
     var top = car.type === 'sport' ? 38 : car.type === 'bike' ? 34 : 29;
