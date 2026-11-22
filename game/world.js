@@ -678,7 +678,7 @@
       if (driving && cam.lookIdle > 1.8) {
         cam.yaw += PH.angle(cam.yaw, p.yaw) * Math.min(1, dt * 1.6);
       }
-      var want = p.vehicle !== null ? 13 : 9;
+      var want = (input && input.zoom) || (p.vehicle !== null ? 13 : 9);
       var got = cameraDistance(target, want);
       cam.dist += (got - cam.dist) * Math.min(1, dt * 8);
       var cx = target.x - Math.cos(cam.yaw) * Math.cos(cam.pitch) * cam.dist;
