@@ -84,8 +84,8 @@
   // Runs AFTER the inner updates (motorcycle's ensureBikes included), so the
   // parked bikes already exist when the bays are filled.
   var prevUpdate = PH.Game.prototype.update;
-  PH.Game.prototype.update = function (dt) {
-    var out = prevUpdate.call(this, dt);
+  PH.Game.prototype.update = function (dt, input) {
+    var out = prevUpdate.call(this, dt, input);
     this.ensureParking();
     return out;
   };

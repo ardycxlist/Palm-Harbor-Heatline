@@ -38,8 +38,8 @@
   };
 
   var prevUpdate = PH.Game.prototype.update;
-  PH.Game.prototype.update = function (dt) {
-    var out = prevUpdate.call(this, dt);
+  PH.Game.prototype.update = function (dt, input) {
+    var out = prevUpdate.call(this, dt, input);
     this.ensureWeather();
     var w = this.extras.weather;
     var phase = WEATHER.phaseOf(this.clock);

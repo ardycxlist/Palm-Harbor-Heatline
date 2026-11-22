@@ -26,15 +26,19 @@
   PH.Game.prototype.ensureBeach = function () {
     if (this.beachReady) return;
     this.beachReady = true;
-    // Moor the three boats.
+    // Moor the three boats (also listed as this.boats for direct access).
+    // Boat ids follow the cars array so id === index everywhere.
+    this.boats = [];
     for (var i = 0; i < BEACH.boats.length; i++) {
       var b = BEACH.boats[i];
-      this.cars.push({
-        id: 1000 + i, type: 'boat', name: 'BOAT', color: b.color,
+      var boat = {
+        id: this.cars.length, type: 'boat', name: 'BOAT', color: b.color,
         x: b.x, z: b.z, yaw: b.yaw, speed: 0, hp: 100,
         owned: false, claimed: false, stolen: false, missionCar: false,
         driver: false, parked: true, fuel: 100, throttle: 0
-      });
+      };
+      this.cars.push(boat);
+      this.boats.push(boat);
     }
     // Eight beachgoers: 4 lounging on towels, 4 strolling.
     this.beachgoers = [];
@@ -178,6 +182,7 @@
       s.player.x = 210;
       s.player.z = clamp(s.player.z, -60, 145);
       s.player.vehicle = null;
+      s.car = null;
     }
     return s;
   };

@@ -27,7 +27,7 @@
   }
 
   // A witnessed kill heats the player up: one star even without a kill count.
-  PH.Game.prototype.addHeat = function () { this.heat = 1; };
+  // (addHeat itself lives in core.js, next to getWantedStars.)
   var prevRegisterKill = PH.Game.prototype.registerKill;
   PH.Game.prototype.registerKill = function (kind) {
     this.addHeat();

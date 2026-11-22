@@ -14,6 +14,7 @@
   function EmergencySystem(game) {
     this.game = game;
     this.units = []; // {kind:'tow'|'ambulance', x,z,yaw,speed,state,target,timer,car}
+    this.towJobs = []; // {car, reason, state:'active'|'done', createdAt}
     this.rescueTimer = 0;
     this.rescueActive = false;
   }
@@ -26,6 +27,13 @@
   EmergencySystem.prototype.reportTow = function (car, reason) {
     car.towJob = reason || 'abandoned';
     car.towAt = this.game.time;
+    // One active job per car; repeated reports return the existing job.
+    for (var i = 0; i < this.towJobs.length; i++) {
+      if (this.towJobs[i].car === car && this.towJobs[i].state === 'active') return this.towJobs[i];
+    }
+    var job = { car: car, reason: car.towJob, state: 'active', createdAt: this.game.time };
+    this.towJobs.push(job);
+    return job;
   };
   EmergencySystem.prototype.finishTow = function (car) {
     car.x = TOW_DEPOT.x + (Math.random() - 0.5) * 8;
@@ -37,6 +45,12 @@
     car.driver = false;
     car.towJob = null;
     car.idle = 0;
+    car.beingTowed = false;
+    car.recoveredAt = this.game.time;
+    car.rhythmParked = false;
+    for (var i = 0; i < this.towJobs.length; i++) {
+      if (this.towJobs[i].car === car && this.towJobs[i].state === 'active') this.towJobs[i].state = 'done';
+    }
     this.game.events.push({ kind: 'notify', text: 'TOW / your car was collected and returned to the depot — hp restored, tank at 50%.', t: this.game.time });
   };
 
@@ -64,10 +78,14 @@
         g.respawn();
       }
     }
-    // Flag abandoned cars for tow.
+    // Flag abandoned cars for tow. Rhythm-parked cars are properly parked
+    // for the night and are never tow-reported; a car with a driver is
+    // actively driven, however long it sits in traffic.
     for (var ci = 0; ci < g.cars.length; ci++) {
       var car = g.cars[ci];
       if (car.id === g.player.vehicle) continue;
+      if (car.rhythmParked) continue;
+      if (car.driver) continue;
       if (car.parked && car.towJob) continue;
       if (Math.abs(car.speed) < 0.2) car.idle = (car.idle || 0) + dt;
       else car.idle = 0;
@@ -127,6 +145,7 @@
         if (u.timer <= 0 && u.car) {
           u.state = 'return';
           u.car.hooked = true;
+          u.car.beingTowed = true;
         }
       } else if (u.state === 'treat') {
         u.timer -= dt;
@@ -184,7 +203,8 @@
   var prevUpdate = PH.Game.prototype.update;
   PH.Game.prototype.update = function (dt, input) {
     var out = prevUpdate.call(this, dt, input);
-    if (this.emergency) this.emergency.update(dt);
+    if (!this.emergency) this.emergency = new EmergencySystem(this);
+    this.emergency.update(dt);
     return out;
   };
 

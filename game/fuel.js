@@ -10,12 +10,8 @@
 
   var FUEL = {
     rate: 0.065, price: 1, strandDist: 60,
-    stations: [
-      { id: 'fuel-oq', x: -51, z: 13, label: 'FUEL / OLD QUARTER' },
-      { id: 'fuel-gd', x: 13, z: -179, label: 'FUEL / GLASS DISTRICT' },
-      { id: 'fuel-ps', x: 141, z: 141, label: 'FUEL / PORT SOL' },
-      { id: 'fuel-ss', x: 205, z: 42, label: 'FUEL / SUNSTRAND' }
-    ]
+    // The stations ARE the fuel contacts (same objects as PH.CONTACTS).
+    stations: PH.CONTACTS.filter(function (c) { return c.kind === 'fuel'; })
   };
   function topSpeed(type) {
     if (type === 'boat') return 16;
@@ -79,7 +75,9 @@
   PH.Game.prototype.interact = function () {
     var car = this.getCar();
     if (car && this.nearestStation(10)) {
-      if (car.fuel < 100) { this.refuel(); return true; }
+      // Full tank: a successful interact, no charge. Broke: refuel refuses.
+      if (car.fuel >= 100) return true;
+      return this.refuel();
     }
     return prevInteract.call(this);
   };
@@ -92,8 +90,8 @@
   };
 
   var prevUpdate = PH.Game.prototype.update;
-  PH.Game.prototype.update = function (dt) {
-    var out = prevUpdate.call(this, dt);
+  PH.Game.prototype.update = function (dt, input) {
+    var out = prevUpdate.call(this, dt, input);
     this.ensureFuel();
     var car = this.getCar();
     if (car) {
@@ -115,11 +113,17 @@
         }
         if (car.fuel <= 0) this.fuelCut(car);
       }
-      // A stalled claimed car left far away gets collected by a tow.
-      if (car.claimed && car.fuel <= 0 && car.id !== this.player.vehicle) {
-        if (dist(car.x, car.z, this.player.x, this.player.z) > 60) {
-          if (this.emergency) this.emergency.reportTow(car, 'empty fuel');
-        }
+    }
+    // A stalled claimed car left far away gets collected by a tow.
+    // Scan the whole fleet: the player is usually on foot when a car
+    // is left behind. Rhythm-parked cars are never tow-reported.
+    for (var ti = 0; ti < this.cars.length; ti++) {
+      var tc = this.cars[ti];
+      if (!tc.claimed || tc.fuel === undefined || tc.fuel > 0) continue;
+      if (tc.id === this.player.vehicle) continue;
+      if (tc.rhythmParked) continue;
+      if (dist(tc.x, tc.z, this.player.x, this.player.z) > FUEL.strandDist) {
+        if (this.emergency) this.emergency.reportTow(tc, 'empty fuel');
       }
     }
     return out;

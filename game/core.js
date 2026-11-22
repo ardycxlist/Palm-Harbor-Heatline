@@ -67,10 +67,29 @@
         blocks.push({ x0: x0, x1: x1, z0: z0, z1: z1, cx: cx, cz: cz, district: d, park: isPark });
         if (isPark) { parks.push({ cx: cx, cz: cz, district: d }); continue; }
         var n = 1 + Math.floor(r() * 3);
+        // Mission steps and contacts must stay reachable on foot: never let
+        // a building footprint cover one (2 units of clearance).
+        var PROTECTED = [];
+        for (var mi = 0; mi < MISSIONS.length; mi++)
+          for (var si = 0; si < MISSIONS[mi].steps.length; si++)
+            PROTECTED.push(MISSIONS[mi].steps[si]);
+        for (var ci = 0; ci < CONTACTS.length; ci++) PROTECTED.push(CONTACTS[ci]);
+        // The air patrol route (air-support.js) must stay clear of roofs too.
+        var route = PH.AIR_PATROL_ROUTE || [];
+        for (var ri = 0; ri < route.length; ri++) PROTECTED.push({ x: route[ri][0], z: route[ri][1] });
         for (var k = 0; k < n; k++) {
-          var w = 14 + r() * 22, dep = 14 + r() * 22;
-          var bx = x0 + 4 + r() * Math.max(1, (x1 - x0 - 8 - w));
-          var bz = z0 + 4 + r() * Math.max(1, (z1 - z0 - 8 - dep));
+          var w, dep, bx, bz, placed = false;
+          for (var attempt = 0; attempt < 10 && !placed; attempt++) {
+            w = 14 + r() * 22; dep = 14 + r() * 22;
+            bx = x0 + 4 + r() * Math.max(1, (x1 - x0 - 8 - w));
+            bz = z0 + 4 + r() * Math.max(1, (z1 - z0 - 8 - dep));
+            placed = true;
+            for (var pi = 0; pi < PROTECTED.length; pi++) {
+              var pp = PROTECTED[pi];
+              if (pp.x > bx - 2 && pp.x < bx + w + 2 && pp.z > bz - 2 && pp.z < bz + dep + 2) { placed = false; break; }
+            }
+          }
+          if (!placed) continue;
           var h = 8 + r() * r() * 42;
           if (d === 'PORT SOL' && h < 14) h = 8 + r() * 5; // warehouse
           var b = {
@@ -98,10 +117,10 @@
     { id: 'clinic', kind: 'shop', label: 'CLINIC', x: -30, z: 30 },
     { id: 'garage', kind: 'garage', label: 'NICO GARAGE', x: 90, z: -30 },
     { id: 'home', kind: 'home', label: 'SAFEHOUSE', x: -90, z: 90 },
-    { id: 'fuel-oq', kind: 'fuel', label: 'FUEL / OLD QUARTER', x: -51, z: 13 },
-    { id: 'fuel-gd', kind: 'fuel', label: 'FUEL / GLASS DISTRICT', x: 13, z: -179 },
-    { id: 'fuel-ps', kind: 'fuel', label: 'FUEL / PORT SOL', x: 141, z: 141 },
-    { id: 'fuel-ss', kind: 'fuel', label: 'FUEL / SUNSTRAND', x: 205, z: 42 },
+    { id: 'fuel-oq', kind: 'fuel', type: 'fuel', label: 'FUEL / OLD QUARTER', x: -51, z: 13 },
+    { id: 'fuel-gd', kind: 'fuel', type: 'fuel', label: 'FUEL / GLASS DISTRICT', x: 13, z: -179 },
+    { id: 'fuel-ps', kind: 'fuel', type: 'fuel', label: 'FUEL / PORT SOL', x: 141, z: 141 },
+    { id: 'fuel-ss', kind: 'fuel', type: 'fuel', label: 'FUEL / SUNSTRAND', x: 205, z: 42 },
     { id: 'chop', kind: 'chop', label: 'CHOP SHOP', x: 150, z: 180 },
     { id: 'race-av', kind: 'race', label: 'AVENIDA SPRINT', x: 0, z: -100 },
     { id: 'race-pr', kind: 'race', label: 'PORT RUN', x: 100, z: 160 },
@@ -300,6 +319,7 @@
   };
   Game.prototype.isNight = function () { return this.phaseOf() === 'night'; };
   Game.prototype.weatherGrip = function () { return 1; };
+  Game.prototype.addHeat = function () { this.heat = 1; };
   Game.prototype.getWantedStars = function () {
     if (this.wantedKills >= 12) return 5;
     if (this.wantedKills >= 9) return 4;
@@ -321,6 +341,8 @@
     return false;
   };
   Game.prototype.collides = function (x, z) { return this.blocked(x, z); };
+  // Whether a ground entity is blocked at a point (buildings + island edge).
+  Game.prototype.entityBlocked = function (x, z) { return this.blocked(x, z); };
 
   Game.prototype.resolveFootOverlap = function () {
     var p = this.player;
@@ -381,10 +403,15 @@
     car.yaw += steer * steerRate * dt * dir * clamp(Math.abs(car.speed) / 6, 0, 1);
     var nx = car.x + Math.cos(car.yaw) * car.speed * dt;
     var nz = car.z + Math.sin(car.yaw) * car.speed * dt;
-    if (!this.blocked(nx, nz)) { car.x = nx; car.z = nz; }
-    else { car.speed *= -0.25; this.effects.push({ kind: 'crash', x: car.x, z: car.z, t: 0.2 }); this.stats.crashes++; }
+    // Axis-separated: slide along a wall instead of bouncing off it. The
+    // car stops moving but keeps its speed while pressed against a wall
+    // (full throttle against a wall still reads flat-out).
+    var ox = car.x, oz = car.z, moved = false;
+    if (!this.blocked(nx, car.z)) { car.x = nx; moved = true; }
+    if (!this.blocked(car.x, nz)) { car.z = nz; moved = true; }
+    if (!moved) { this.effects.push({ kind: 'crash', x: car.x, z: car.z, t: 0.2 }); this.stats.crashes++; }
     p.x = car.x; p.z = car.z; p.yaw = car.yaw; p.speed = car.speed;
-    this.stats.distance += Math.abs(car.speed) * dt;
+    this.stats.distance += Math.abs(car.x - ox) + Math.abs(car.z - oz);
   };
 
   // ---------- vehicles: enter / exit ----------
@@ -444,6 +471,13 @@
     this.fireCooldown = w.cooldown;
     this.stats.shots++;
     var range = w.range;
+    // Walls stop bullets: march the ray and clamp the range at the first
+    // blocked point, so a target behind a building is never hit and the
+    // tracer stops at the wall.
+    var stepX = Math.cos(p.yaw), stepZ = Math.sin(p.yaw);
+    for (var s = 1; s < range; s += 0.5) {
+      if (this.blocked(p.x + stepX * s, p.z + stepZ * s)) { range = s; break; }
+    }
     // Find the nearest hittable target along the facing ray.
     var hx = p.x + Math.cos(p.yaw), hz = p.z + Math.sin(p.yaw);
     var best = null, bd = range;
@@ -857,6 +891,15 @@
       mission: { index: this.mission.index, active: this.mission.active, step: this.mission.step, progress: this.mission.progress, timer: this.mission.timer },
       stats: this.stats, wantedKills: this.wantedKills, casualties: this.casualties,
       heat: this.heat, search: this.search, bestRace: this.bestRace,
+      car: (function () {
+        var vc = this.getCar();
+        if (!vc) return null;
+        return {
+          id: vc.id, type: vc.type, x: vc.x, z: vc.z, yaw: vc.yaw, hp: vc.hp, color: vc.color,
+          claimed: !!vc.claimed, missionCar: !!vc.missionCar, owned: !!vc.owned, stolen: !!vc.stolen,
+          parked: !!vc.parked, fuel: vc.fuel === undefined ? 100 : vc.fuel, name: vc.name
+        };
+      }).call(this),
       cars: this.cars.map(function (c) {
         return {
           id: c.id, type: c.type, x: c.x, z: c.z, yaw: c.yaw, hp: c.hp, color: c.color,
@@ -890,6 +933,9 @@
     this.player.weapon = p.weapon || 0;
     this.heat = 0; this.search = 0; this.dead = false;
     this.wantedKills = 0;
+    if (data.wantedKills !== undefined) this.wantedKills = data.wantedKills;
+    if (data.casualties !== undefined) this.casualties = data.casualties;
+    if (data.heat !== undefined) this.heat = data.heat;
     if (data.mission) {
       this.mission.index = data.mission.index || 0;
       this.mission.active = !!data.mission.active;
@@ -910,6 +956,10 @@
         car.owned = !!sc.owned; car.stolen = !!sc.stolen;
         car.parked = !!sc.parked; car.fuel = sc.fuel === undefined ? 100 : sc.fuel;
       }
+    }
+    // Seat the player in the saved vehicle again (if that car still exists).
+    if (p.vehicle !== null && p.vehicle !== undefined && this.cars[p.vehicle]) {
+      this.player.vehicle = p.vehicle;
     }
     return true;
   };

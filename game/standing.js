@@ -90,8 +90,8 @@
 
   // Legacy saves without a standing slot start at 10 everywhere on first tick.
   var prevUpdate = PH.Game.prototype.update;
-  PH.Game.prototype.update = function (dt) {
-    var out = prevUpdate.call(this, dt);
+  PH.Game.prototype.update = function (dt, input) {
+    var out = prevUpdate.call(this, dt, input);
     this.ensureStanding();
     PH._liveGame = this;
     return out;

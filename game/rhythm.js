@@ -7,7 +7,9 @@
   var PH = (globalThis.PH = globalThis.PH || {});
 
   var RHYTHM = {
-    nightCruise: 0.9, parkOffset: 6.8, laneOffset: 3.4, idRule: [0, 4, 8],
+    nightCruise: 0.9, parkOffset: 6.8, laneOffset: 3.4,
+    // Id rule: cars whose id ends in 0, 4 or 8 park at the kerb at night.
+    idRule: function (id) { return [0, 4, 8].indexOf(id % 10) >= 0; },
     phaseOf: function (clock) { return (clock >= 6 && clock < 18.5) ? 'day' : 'night'; }
   };
 
@@ -43,8 +45,8 @@
   };
 
   var prevUpdate = PH.Game.prototype.update;
-  PH.Game.prototype.update = function (dt) {
-    var out = prevUpdate.call(this, dt);
+  PH.Game.prototype.update = function (dt, input) {
+    var out = prevUpdate.call(this, dt, input);
     this.ensureRhythm();
     var night = RHYTHM.phaseOf(this.clock) === 'night';
     for (var i = 0; i < this.cars.length; i++) {
@@ -52,7 +54,7 @@
       if (c.type === 'boat') continue;
       if (c.owned || c.claimed || c.missionCar) continue;
       if (c.id === this.player.vehicle) continue;
-      if (RHYTHM.idRule.indexOf(c.id % 10) < 0) continue;
+      if (!RHYTHM.idRule(c.id)) continue;
       if (night) {
         if (!c.driver && c.parked && c.rhythmParked) continue; // already parked for the night
         if (c.driver) {
