@@ -48,8 +48,10 @@
       game.toggleCar();
       shotSpeedTarget = 10; // 40 KM/H on the HUD
     } else if (mode === 'mission') {
-      game.player.x = 17; game.player.z = 10;
-      game.player.yaw = Math.PI / 2;
+      // Stand west of Mara facing her: the courier sedan at (19, 6.5) stays
+      // out of the sightline, the crystal + contact fill the frame.
+      game.player.x = 14; game.player.z = 12;
+      game.player.yaw = 0;
       game.taxiWait = PH.TAXI_SPOTS[0];
       game.events.push({ kind: 'notify', text: 'MARA / Meet me at the coral phone. Your courier car is parked by the road.', t: game.time });
       game.events.push({ kind: 'notify', text: 'TAXI / a passenger is waiting in OLD QUARTER — pick them up by car.', t: game.time });
@@ -71,6 +73,10 @@
       // the x=0 road at z=50 so the shot stays in OLD QUARTER.
       if (car) { car.x = 0; car.z = 50; car.yaw = Math.PI / 2; }
       game.player.x = 0; game.player.z = 50; game.player.yaw = Math.PI / 2;
+      // Pull the camera back for the night shot: from the close chase cam
+      // the spotlight cone fills the frame as a wash; from 18 units back it
+      // reads as a beam from the heli to the pool on the street.
+      input.zoom = 18;
       // Stage the follow helis directly into their formation slots so the
       // spotlights are in frame from the first screenshot tick.
       for (var hi = 0; hi < game.helis.length; hi++) {

@@ -46,6 +46,20 @@
     return { map: map, emissive: emissive };
   }
 
+  // Soft radial falloff texture for light pools (heli disk, lamp pools,
+  // headlight pools): bright centre fading to transparent at the rim, so a
+  // pool reads as light instead of a flat disc.
+  function radialTexture() {
+    var c = document.createElement('canvas'); c.width = c.height = 128;
+    var g = c.getContext('2d');
+    var grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.55, 'rgba(255,255,255,0.55)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }
+
   function districtBoardTexture(title, name) {
     var c = document.createElement('canvas'); c.width = 512; c.height = 128;
     var g = c.getContext('2d');
@@ -72,6 +86,7 @@
     var scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0xe6c4b5, 0.0011);
     var camera = new THREE.PerspectiveCamera(56, 1280 / 720, 0.16, 720);
+    var radialTex = radialTexture();
 
     var sun = new THREE.DirectionalLight(0xffd4aa, 2.04);
     sun.position.set(-80, 75, -38);
@@ -491,7 +506,7 @@
     var bulbMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.2, 8, 6), bulbMat, lampPositions.length);
     var haloMat = new THREE.MeshBasicMaterial({ color: 0xffd694, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
     var haloMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(2.6, 2.6), haloMat, lampPositions.length * 2);
-    var lampPoolMat = new THREE.MeshBasicMaterial({ color: 0xffc98a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    var lampPoolMat = new THREE.MeshBasicMaterial({ color: 0xffc98a, map: radialTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
     var lampPoolMesh = new THREE.InstancedMesh(new THREE.CircleGeometry(6.5, 20), lampPoolMat, lampPositions.length);
     lampPositions.forEach(function (lp, i) {
       var lx = lp[0], lz = lp[1];
@@ -532,7 +547,7 @@
     [poleMesh, armMesh, headMesh, bulbMesh, haloMesh, lampPoolMesh].forEach(function (m) { m.instanceMatrix.needsUpdate = true; });
     scene.add(poleMesh); scene.add(armMesh); scene.add(headMesh); scene.add(bulbMesh); scene.add(haloMesh); scene.add(lampPoolMesh);
     // PLN per building face: light pool on the sidewalk + 2 wall fixtures.
-    var facePoolMat = new THREE.MeshBasicMaterial({ color: 0xffbe78, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+    var facePoolMat = new THREE.MeshBasicMaterial({ color: 0xffbe78, map: radialTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
     var facePoolMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), facePoolMat, Math.max(1, liveBuildings.length * 4));
     var fixtureMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0 });
     var fixtureMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.5, 0.15), fixtureMat, Math.max(1, liveBuildings.length * 8));
@@ -935,7 +950,7 @@
         cone.visible = false;
         g.add(cone); cones.push(cone);
       });
-      var poolMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+      var poolMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, map: radialTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
       var pool = new THREE.Mesh(new THREE.CircleGeometry(1.6, 14), poolMat);
       pool.rotation.x = -Math.PI / 2;
       pool.position.set(0, 0.05, frontZ + 6.5);
@@ -1229,7 +1244,7 @@
       cone.visible = false;
       scene.add(cone);
       var disk = new THREE.Mesh(new THREE.CircleGeometry(4.5, 20),
-        new THREE.MeshBasicMaterial({ color: 0xffe6a2, transparent: true, opacity: 0.27, blending: THREE.AdditiveBlending, depthWrite: false }));
+        new THREE.MeshBasicMaterial({ color: 0xffe6a2, map: radialTex, transparent: true, opacity: 0.27, blending: THREE.AdditiveBlending, depthWrite: false }));
       disk.rotation.x = -Math.PI / 2;
       disk.visible = false;
       scene.add(disk);
@@ -1376,7 +1391,7 @@
         ]
       };
       if (kind === 'contact') return {
-        body: CONTACT_COLORS[ref % 5], legs: 0x2a2a33, skin: 0xd8a878, hair: CONTACT_COLORS[ref % 5],
+        body: PH.CHECKPOINT_COLORS[ref % 5], legs: 0x2a2a33, skin: 0xd8a878, hair: PH.CHECKPOINT_COLORS[ref % 5],
         acc: [{ c: 0xffedb8, x: 0, y: 0.48, z: 0.14, sx: 0.12, sy: 0.1, sz: 0.04 }]
       };
       if (kind === 'taxiPassenger') return {
@@ -1489,6 +1504,7 @@
       plnNightF += (target - plnNightF) * Math.min(1, dt * 1.5);
       bulbMat.color.copy(hexLerp(0x49525c, 0xffffff, plnNightF));
       bodyMat.emissiveIntensity = plnNightF * 0.9;
+      towerBodyMat.emissiveIntensity = plnNightF * 0.9;
       // Rain: 700 slanted lines in a 92x30 box around the camera (§13).
       var rainOpacity = 0.5 * storm;
       rainMat.opacity = rainOpacity;
