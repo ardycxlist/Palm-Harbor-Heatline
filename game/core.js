@@ -8,7 +8,15 @@
 
   // ---------- small helpers ----------
   function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
-  function dist(ax, az, bx, bz) { var dx = bx - ax, dz = bz - az; return Math.sqrt(dx * dx + dz * dz); }
+  function dist(ax, az, bx, bz) {
+    if (ax !== null && typeof ax === 'object') { // dist(a, b) with {x,z} points
+      var b = az;
+      var dx = b.x - ax.x, dz = b.z - ax.z;
+      return Math.sqrt(dx * dx + dz * dz);
+    }
+    var dx2 = bx - ax, dz2 = bz - az;
+    return Math.sqrt(dx2 * dx2 + dz2 * dz2);
+  }
   function lerp(a, b, t) { return a + (b - a) * t; }
   // Shortest signed turn from angle a toward angle b.
   function angle(a, b) {
@@ -771,11 +779,9 @@
       sprint: !!src.sprint, jump: !!src.jump, handbrake: !!src.handbrake
     };
     if (src.moveX || src.moveZ) {
-      var cy = Math.cos(p.yaw), sy = Math.sin(p.yaw);
-      var fwd = (src.moveX || 0) * cy + (src.moveZ || 0) * sy;
-      var str = -(src.moveX || 0) * sy + (src.moveZ || 0) * cy;
-      if (fwd > 0.5) t.forward = true; else if (fwd < -0.5) t.back = true;
-      if (str > 0.5) t.right = true; else if (str < -0.5) t.left = true;
+      // Test-driver frame: moveZ is forward/back, moveX is strafe right/left.
+      if (src.moveZ > 0.5) t.forward = true; else if (src.moveZ < -0.5) t.back = true;
+      if (src.moveX > 0.5) t.right = true; else if (src.moveX < -0.5) t.left = true;
     }
     this.move(dt, t);
     if (src.fire) this.shoot();
