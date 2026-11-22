@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111f29"><title>Palm Harbor: Heatline</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<canvas id="scene"></canvas>
+<div id="vignette"></div>
+<div id="hurt"></div>
+<div id="boot"><div class="boot-card"><div class="boot-brand">PH HEATLINE</div><div class="boot-sub">LOADING PALM HARBOR COUNTY…</div></div></div>
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div id="brand">PH <span>HEATLINE</span></div>
+    <div id="district">OLD QUARTER</div>
+    <div id="clock">DAY 1 · 16:24</div>
+    <div id="money">$300</div>
+    <button id="pauseBtn" type="button">Ⅱ</button>
+  </div>
+  <div id="objective">
+    <div id="objTag">STORY / 01</div>
+    <div id="objTitle">Meet Mara</div>
+    <div id="objText">Go to the coral phone marker and press INTERACT.</div>
+    <div id="objDist">10 M</div>
+    <div id="objTimer" class="hidden"></div>
+  </div>
+  <div id="wanted">
+    <div id="stars"><span>☆</span><span>☆</span><span>☆</span><span>☆</span><span>☆</span></div>
+    <div id="searchBar"><div id="searchFill"></div></div>
+    <div id="wantedLabel">CITY WATCH / CLEAR</div>
+    <div id="heliLabel">HELI 1 / PATROL</div>
+    <div id="casualtyLabel">CASUALTIES 0 / 0 STARS</div>
+  </div>
+  <div id="toasts"></div>
+  <div id="chapterBanner" class="hidden"><div id="chapterKicker"></div><div id="chapterName"></div></div>
+  <div id="crosshair">+</div>
+  <div id="hitmarker" class="hidden">×</div>
+  <div id="minimapWrap">
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div id="mapDistrict">OLD QUARTER</div>
+    <div id="mapCounts">720 CITIZENS / 78 VEHICLES</div>
+  </div>
+  <div id="vitals">
+    <div class="vrow"><span class="vlabel">HEALTH</span><div class="vbar"><div id="hpFill"></div></div><span id="hpNum" class="vnum">100</span></div>
+    <div class="vrow"><span class="vlabel">ARMOR</span><div class="vbar"><div id="armorFill"></div></div><span id="armorNum" class="vnum">40</span></div>
+    <div class="vrow"><span class="vlabel">SPRINT</span><div class="vbar"><div id="sprintFill"></div></div><span id="sprintNum" class="vnum">100</span></div>
+    <div id="weaponLabel">SIDEARM 12 / 72</div>
+  </div>
+  <div id="speedo" class="hidden">
+    <div id="speedNum">0</div><div id="speedUnit">KM/H</div>
+    <div id="carLine">SEDAN / OWNED / FUEL 100%</div>
+    <div class="vrow"><span class="vlabel">CAR</span><div class="vbar"><div id="carHpFill"></div></div></div>
+    <div class="vrow"><span class="vlabel">FUEL</span><div class="vbar"><div id="carFuelFill"></div></div></div>
+  </div>
+  <div id="context"></div>
+  <div id="destLabel" class="hidden">◇ <span id="destDist">0 m</span></div>
+  <div id="hints">WASD move · mouse / drag look · F car · E interact · M map</div>
+  <div id="saveIcon" class="hidden">AUTO SAVED</div>
+  <div id="serviceBar">
+    <button id="recoverBtn" type="button" class="hidden">RECOVER AT CLINIC</button>
+    <button id="shopBtn" type="button" class="hidden">SUPPLIES / SHOP</button>
+  </div>
+  <div id="touchControls">
+    <div id="stick"><div id="stickKnob"></div></div>
+    <button id="tFire" type="button">FIRE</button>
+    <button id="tCar" type="button">CAR</button>
+    <button id="tAct" type="button">ACT</button>
+    <button id="tRun" type="button">RUN</button>
+    <button id="tJump" type="button">JUMP</button>
+    <button id="tReload" type="button">RELOAD</button>
+  </div>
+</div>
+<div id="startOverlay">
+  <div class="start-card">
+    <div class="start-kicker">PH / 01 — PALM HARBOR COUNTY, LOCAL EDITION · v1.0.0</div>
+    <h1>PALM HARBOR<br><span>HEATLINE</span></h1>
+    <p class="start-tag">Everybody has somewhere to go.<br>You have something to hide.</p>
+    <p class="start-intro">A stolen archive. Six contracts. One city that never sits still. Drive it, rob it, outrun it — and get out clean.</p>
+    <div class="start-buttons">
+      <button id="startBtn" type="button">START STORY</button>
+      <button id="continueBtn" type="button">CONTINUE</button>
+      <button id="howBtn" type="button">HOW TO PLAY</button>
+    </div>
+    <div id="featureLine">720 CITIZENS • 78 VEHICLES • 6 CONTRACTS • OFFLINE 3D</div>
+  </div>
+</div>
+<div id="mapOverlay" class="hidden">
+  <div class="map-card">
+    <div class="map-head"><div><div class="map-title">PALM HARBOR COUNTY</div><div class="map-sub">CITY DIRECTORY</div></div><button id="closeMapBtn" type="button">✕</button></div>
+    <canvas id="bigmap" width="800" height="740"></canvas>
+    <div class="map-legend"><span>◇ OBJECTIVE</span><span>＋ CLINIC</span><span>⌂ SAFEHOUSE</span><span>⚑ COAST RUN</span></div>
+    <button id="clearWaypointBtn" type="button">Clear waypoint</button>
+  </div>
+</div>
+<div id="modal" class="hidden">
+  <div class="modal-card"><div id="modalText"></div><button id="modalBack" type="button">BACK TO THE CITY</button></div>
+</div>
+<div id="pauseOverlay" class="hidden">
+  <div class="pause-card">
+    <div class="pause-title">PAUSED</div>
+    <div id="fpsReadout">30 FPS</div>
+    <div class="pause-hints">WASD move · mouse / drag look · F car · E interact · M map<br>Shift sprint · Space jump / handbrake · Q weapon · R reload · H heal · Esc resume</div>
+    <button id="resumeBtn" type="button">RESUME</button>
+  </div>
+</div>
+<script src="vendor/three.min.js"></script><script src="core.js"></script><script src="emergency.js"></script><script src="police-support.js"></script><script src="air-support.js"></script><script src="beach.js"></script><script src="motorcycle.js"></script><script src="weather.js"></script><script src="rhythm.js"></script><script src="fuel.js"></script><script src="standing.js"></script><script src="activities.js"></script><script src="crew.js"></script><script src="parking.js"></script><script src="chapters.js"></script><script src="world.js"></script><script src="audio.js"></script><script src="main.js"></script>
+</body></html>
