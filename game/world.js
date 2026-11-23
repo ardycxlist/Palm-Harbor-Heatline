@@ -1,5 +1,5 @@
 // PALM HARBOR: HEATLINE — three.js renderer.
-// Fixed look: ACES 1.12, 1024 shadows, pixel ratio cap 1.5, crowd range 190.
+// Fixed look: ACES 1.12, 1024 shadows, fixed pixel ratio 1.5, crowd range 190.
 // Bakes the city once (instanced buildings/palms/lamps), syncs people,
 // vehicles, helis, markers and weather every frame. Written from the memo.
 (function () {
@@ -66,7 +66,10 @@
 
   function createWorld(game, canvas) {
     var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    // Fixed pixel ratio 1.5: the headless devicePixelRatio is 1, so a cap
+    // of min(dpr, 1.5) renders at 1.0 and edges stay aliased. A fixed 1.5
+    // renders every frame at 1.5x for smoother edges on any display.
+    renderer.setPixelRatio(1.5);
     renderer.setSize(canvas.clientWidth || 1280, canvas.clientHeight || 720, false);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.12;
@@ -1365,7 +1368,9 @@
       new THREE.MeshBasicMaterial({ color: 0xff946a, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
     mRing.rotation.x = -Math.PI / 2; mRing.position.y = 0.1;
     marker.add(mRing);
-    var mCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(1.05),
+    // Crystal shrunk 1.05 -> 0.8: at 1.05 it read large and pale, kite-like
+    // against the hero; 0.8 keeps the diamond readable without dominating.
+    var mCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.8),
       new THREE.MeshBasicMaterial({ color: 0x92f6d1 }));
     mCrystal.position.y = 2.2;
     marker.add(mCrystal);
