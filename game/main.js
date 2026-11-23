@@ -42,7 +42,14 @@
   }
   function applyShotPreset(mode) {
     game.mission.active = true;
-    if (mode === 'drive') {
+    if (mode === 'city') {
+      // Hero on the east sidewalk of the x=0 road (inset 12, free ground
+      // at z=5), facing south down the street: the road and its traffic
+      // run down the right of the frame, the east facades and the palm
+      // at (12,12) down the left.
+      game.player.x = 12; game.player.z = 5;
+      game.player.yaw = Math.PI / 2;
+    } else if (mode === 'drive') {
       moveSedanTo(0, 20);
       game.player.x = 0; game.player.z = 20;
       game.toggleCar();
@@ -50,11 +57,11 @@
     } else if (mode === 'mission') {
       // Stand west of Mara facing her: the courier sedan at (19, 6.5) stays
       // out of the sightline, the crystal + contact fill the frame. Camera
-      // pulled back to 12 so the palm at (12,12) reads as a palm with its
-      // crown instead of a close trunk, and the crystal reads smaller.
+      // in close at 7 so the hero reads at full height instead of a small
+      // figure in the distance.
       game.player.x = 14; game.player.z = 12;
       game.player.yaw = 0;
-      input.zoom = 12;
+      input.zoom = 7;
       game.taxiWait = PH.TAXI_SPOTS[0];
       game.events.push({ kind: 'notify', text: 'MARA / Meet me at the coral phone. Your courier car is parked by the road.', t: game.time });
       game.events.push({ kind: 'notify', text: 'TAXI / a passenger is waiting in OLD QUARTER — pick them up by car.', t: game.time });

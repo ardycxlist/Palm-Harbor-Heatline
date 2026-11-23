@@ -1645,8 +1645,11 @@
       skyUniforms.sunDir.value.set(sun.position.x, sun.position.y, sun.position.z).normalize();
       scene.fog.color.copy(horizon);
       scene.fog.density = 0.0011 + 0.005 * storm;
-      // Night lighting (PLN): rises 17.55-18.5, falls 5-6.
-      var target = smoothstep(17.55, 18.5, clock) * (1 - smoothstep(5, 6, clock));
+      // Night lighting (PLN): rises 17.55-18.5, falls 5-6. The two ramps
+      // never overlap, so the sum stays in [0,1] (a product here would be
+      // zero for every hour of the day).
+      var target = smoothstep(17.55, 18.5, clock) + (1 - smoothstep(5, 6, clock));
+      if (target > 1) target = 1;
       if (clock >= 6 && clock < 17.55) target = 0;
       plnNightF += (target - plnNightF) * Math.min(1, dt * 1.5);
       bulbMat.color.copy(hexLerp(0x49525c, 0xffffff, plnNightF));
