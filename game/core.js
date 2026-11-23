@@ -267,6 +267,7 @@
     this.effects = []; this.shots = []; this.events = [];
     this.clock = 16.4; this.time = 0; this.day = 1;
     this.heat = 0; this.search = 0; this.heatCooldown = 0;
+    this.episodeActive = false;
     this.paused = false; this.dead = false;
     this.mission = { index: 0, active: false, step: 0, progress: 0, timer: 0 };
     this.settings = { volume: 0.55, music: true, quality: 0, population: 720 };
@@ -391,6 +392,43 @@
         var push = (0.9 - d) / 2;
         var nx = (ped.x - p.x) / d, nz = (ped.z - p.z) / d;
         ped.x += nx * push; ped.z += nz * push;
+      }
+    }
+  };
+
+  // A moving car the player drives that runs into a person on foot knocks
+  // them down: +1 kill, +1 heat (reference §2.7 / play notes — run-over is
+  // the natural path to 1 star by driving). Traffic cars never do this;
+  // only the player's car. Rectangular test in the car's own frame, so a
+  // pedestrian beside the car is not hit.
+  Game.prototype.resolveVehiclePedCollisions = function () {
+    var car = this.getCar();
+    if (!car || Math.abs(car.speed) < 2) return;
+    var e = vehicleHalfExtents(car.type);
+    var c = Math.cos(car.yaw), s = Math.sin(car.yaw);
+    var i, j, rel, lf, wf;
+    for (i = 0; i < this.peds.length; i++) {
+      var ped = this.peds[i];
+      if (ped.down) continue;
+      rel = { x: ped.x - car.x, z: ped.z - car.z };
+      lf = rel.x * c + rel.z * s;
+      wf = -rel.x * s + rel.z * c;
+      if (Math.abs(lf) < e.l + 0.4 && Math.abs(wf) < e.w + 0.4) {
+        ped.down = true;
+        this.registerKill('ped');
+        this.events.push({ kind: 'hit', t: this.time });
+      }
+    }
+    for (j = 0; j < this.police.length; j++) {
+      var off = this.police[j];
+      if (!off.foot || off.state === 'down' || off.state === 'neutralized') continue;
+      rel = { x: off.x - car.x, z: off.z - car.z };
+      lf = rel.x * c + rel.z * s;
+      wf = -rel.x * s + rel.z * c;
+      if (Math.abs(lf) < e.l + 0.4 && Math.abs(wf) < e.w + 0.4) {
+        off.hp = 0; off.state = 'down'; off.down = true;
+        this.registerKill('officer');
+        this.events.push({ kind: 'hit', t: this.time });
       }
     }
   };
@@ -889,6 +927,7 @@
     if (this.heatCooldown > 0) this.heatCooldown -= dt;
     if (this.policeTimer > 0) this.policeTimer -= dt;
     this.updateTraffic(dt);
+    this.resolveVehiclePedCollisions();
     this.updateEnemies(dt);
     this.updatePolice(dt);
     this.resolveFootOverlap();
