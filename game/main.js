@@ -659,7 +659,6 @@
         var sc = game.getCar();
         if (sc && sc.speed > 0) sc.speed = shotSpeedTarget;
       }
-      drainEvents();
       audio.update(game, dt);
     }
     var look = { lookDX: input.lookDX, lookDY: input.lookDY, zoom: input.zoom || 0 };
@@ -669,6 +668,14 @@
     }
     world.update(dt, look);
     world.render();
+    // Drain game events into toasts AFTER the render: a toast's 4.5 s
+    // removal timer starts at creation, and a software-rendered frame
+    // takes about as long — draining before the render meant the timer
+    // fired before the compositor ever presented a frame containing the
+    // toast, so mission dialogue toasts were never visible on screen.
+    // Draining after the render puts them on the frame just presented;
+    // in normal play this delays a toast by one frame (33 ms).
+    if (!paused && $('startOverlay').classList.contains('hidden')) drainEvents();
     if ($('startOverlay').classList.contains('hidden')) { uiDt = dt; updateUI(); }
   }
 
