@@ -30,17 +30,9 @@
     var e = document.createElement('canvas'); e.width = 128; e.height = 128;
     var ge = e.getContext('2d');
     ge.fillStyle = '#000'; ge.fillRect(0, 0, 128, 128);
-    var litColors = ['#ffc786', '#81dfed', '#ff9d94', '#ffe9bb'];
-    var darkColors = darkPalette ? darkPalette.map(function (h) { return '#' + ('000000' + h.toString(16)).slice(-6); }) : ['#385974', '#467990', '#668b9e', '#506581', '#397081'];
-    var r = PH.rng(1234);
-    for (var y = 8; y < 120; y += 24) {
-      for (var x = 8; x < 120; x += 24) {
-        var lit = r() < 0.3;
-        g.fillStyle = lit ? litColors[Math.floor(r() * litColors.length)] : darkColors[Math.floor(r() * darkColors.length)];
-        g.fillRect(x, y, 15, 19);
-        if (lit) { ge.fillStyle = '#fff'; ge.fillRect(x, y, 15, 19); }
-      }
-    }
+    // Plain base: the window grid used to live in this texture and stretched
+    // across tall facades. Windows are geometry now (baked below), so the
+    // texture is a flat base colour and the emissive map stays black.
     var map = new THREE.CanvasTexture(c);
     var emissive = new THREE.CanvasTexture(e);
     return { map: map, emissive: emissive };
@@ -255,6 +247,7 @@
     var TOWER_GLASS = [0x3e708a, 0x527794, 0x426286, 0x468b98];
     var DARK_WIN = [0x385974, 0x467990, 0x668b9e, 0x506581, 0x397081];
     liveBuildings.forEach(function (b, i) {
+      if (b.demolished) return;
       var cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
       var bw = b.maxX - b.minX, bd = b.maxZ - b.minZ;
       dummy.rotation.set(0, 0, 0);
@@ -412,6 +405,78 @@
     scene.add(crownMesh); scene.add(crownTopMesh); scene.add(pentMesh); scene.add(antennaMesh); scene.add(tankMesh);
     scene.add(bandMesh); scene.add(bandStripMesh); scene.add(awnMesh); scene.add(awnStripMesh);
     scene.add(doorMesh); scene.add(shopWinMesh);
+
+    // Windows as geometry on all four faces: pane 1.5 x 1.9 on a 2.9 x
+    // 3.3 grid, first row at y 4.9 (above the band + awning). The lit
+    // share of each building is its own b.lit (18-40%, deterministic
+    // hash per pane); tower glass reads 1.3x brighter. Lit panes share
+    // one material (winLitMat) that the frame loop fades from dark
+    // glass by day to warm glass at night.
+    var WIN_LIT = [0xffc786, 0x81dfed, 0xff9d94, 0xffe9bb];
+    var winPaneGeo = new THREE.BoxGeometry(1, 1, 1);
+    var winDarkMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    var winLitMat = new THREE.MeshBasicMaterial({ color: 0x17303b });
+    function winRows(h) {
+      var n = 0;
+      for (var yy = 4.9; yy + 0.95 <= h - 0.8; yy += 3.3) n++;
+      return n;
+    }
+    function winCols(fw) { return Math.max(1, Math.floor((fw - 1.0) / 2.9)); }
+    var winTotal = 0;
+    liveBuildings.forEach(function (b) {
+      var bw4 = b.maxX - b.minX, bd4 = b.maxZ - b.minZ;
+      winTotal += (winCols(bw4) + winCols(bd4)) * 2 * winRows(b.h);
+    });
+    var winDarkMesh = new THREE.InstancedMesh(winPaneGeo, winDarkMat, winTotal);
+    var winLitMesh = new THREE.InstancedMesh(winPaneGeo, winLitMat, winTotal);
+    var winDarkI = 0, winLitI = 0;
+    liveBuildings.forEach(function (b, bi) {
+      if (b.demolished) return;
+      var cx4 = (b.minX + b.maxX) / 2, cz4 = (b.minZ + b.maxZ) / 2;
+      var bw5 = b.maxX - b.minX, bd5 = b.maxZ - b.minZ;
+      var faces = [
+        { fw: bd5, px: b.maxX + 0.08, pz: cz4, rot: 1 },
+        { fw: bd5, px: b.minX - 0.08, pz: cz4, rot: 1 },
+        { fw: bw5, px: cx4, pz: b.maxZ + 0.08, rot: 0 },
+        { fw: bw5, px: cx4, pz: b.minZ - 0.08, rot: 0 }
+      ];
+      faces.forEach(function (fc, fi) {
+        var cols = winCols(fc.fw), rows = winRows(b.h);
+        for (var ci = 0; ci < cols; ci++) {
+          var along = (ci - (cols - 1) / 2) * 2.9;
+          for (var ri = 0; ri < rows; ri++) {
+            var wy = 4.9 + ri * 3.3;
+            var hv = Math.abs(Math.sin(bi * 12.9898 + fi * 78.233 + ci * 37.719 + ri * 11.135) * 43758.5453) % 1;
+            var lit = hv < b.lit;
+            var px = fc.rot === 1 ? fc.px : fc.px + along;
+            var pz = fc.rot === 1 ? fc.pz + along : fc.pz;
+            dummy.position.set(px, wy, pz);
+            dummy.rotation.set(0, fc.rot === 1 ? Math.PI / 2 : 0, 0);
+            dummy.scale.set(1.5, 1.9, 0.12);
+            dummy.updateMatrix();
+            if (lit) {
+              winLitMesh.setMatrixAt(winLitI, dummy.matrix);
+              var lc = new THREE.Color(WIN_LIT[Math.floor(Math.abs(Math.sin(bi * 3.7 + ci * 13.1 + ri * 7.7) * 43758.5453) % 1 * WIN_LIT.length)]);
+              if (b.tower) { lc.r = Math.min(1, lc.r * 1.3); lc.g = Math.min(1, lc.g * 1.3); lc.b = Math.min(1, lc.b * 1.3); }
+              winLitMesh.setColorAt(winLitI, lc);
+              winLitI++;
+            } else {
+              winDarkMesh.setMatrixAt(winDarkI, dummy.matrix);
+              var dc = new THREE.Color(DARK_WIN[Math.floor(hv * DARK_WIN.length)]);
+              if (b.tower) { dc.r = Math.min(1, dc.r * 1.3); dc.g = Math.min(1, dc.g * 1.3); dc.b = Math.min(1, dc.b * 1.3); }
+              winDarkMesh.setColorAt(winDarkI, dc);
+              winDarkI++;
+            }
+          }
+        }
+      });
+    });
+    winDarkMesh.instanceMatrix.needsUpdate = true;
+    winLitMesh.instanceMatrix.needsUpdate = true;
+    if (winDarkMesh.instanceColor) winDarkMesh.instanceColor.needsUpdate = true;
+    if (winLitMesh.instanceColor) winLitMesh.instanceColor.needsUpdate = true;
+    scene.add(winDarkMesh); scene.add(winLitMesh);
+    stats.staticInstances += winTotal;
     stats.staticInstances += liveBuildings.length * 12;
     // Red beacon lights on tall towers (antenna tips when present).
     var beaconMat = new THREE.MeshBasicMaterial({ color: 0xf78495 });
@@ -428,7 +493,7 @@
     // Palms: leaning ringed trunks (3 stacked segments), 9-leaf crowns on a
     // base ball, square planters (reference §7).
     var palms = game.city.props.filter(function (p) { return p.kind === 'palm'; });
-    var trunkMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.22, 1, 6), mat(0xffffff), Math.max(1, palms.length * 6));
+    var trunkMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.08, 0.11, 1, 6), mat(0xffffff), Math.max(1, palms.length * 6));
     var leafColors = [0x196856, 0x2e8768, 0x53a66c, 0x3c925b];
     var leafMesh = new THREE.InstancedMesh(new THREE.ConeGeometry(0.55, 1, 4), mat(0xffffff), Math.max(1, palms.length * 9));
     var crownMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 8, 6), mat(0x536843), Math.max(1, palms.length));
@@ -440,18 +505,23 @@
       var az = (i * 2.399) % (Math.PI * 2);
       var dx = Math.cos(az), dz = Math.sin(az);
       var lean = p.lean || 0.4;
+      // lean is a HORIZONTAL OFFSET in units (0.26-0.57), not an angle:
+      // the trunk is a straight post tilted atan2(lean, h) ~ 3-6.5 deg,
+      // crown upright above it (reference §6 / play notes). A 0.57 rad
+      // tilt would read as a tree about to fall over.
+      var tilt = Math.atan2(lean, p.h);
       // Six trunk segments: dark brown base with alternating ring bands,
       // so the trunk reads as a palm trunk, not a flat orange plank.
       for (var sg = 0; sg < 6; sg++) {
         var fy = p.h * (sg + 0.5) / 6;
-        dummy.position.set(p.x + dx * fy * Math.sin(lean), fy * Math.cos(lean), p.z + dz * fy * Math.sin(lean));
+        dummy.position.set(p.x + dx * fy * Math.sin(tilt), fy * Math.cos(tilt), p.z + dz * fy * Math.sin(tilt));
         dummy.scale.set(1, p.h / 6, 1);
-        dummy.rotation.set(dz * lean, 0, -dx * lean);
+        dummy.rotation.set(dz * tilt, 0, -dx * tilt);
         dummy.updateMatrix();
         trunkMesh.setMatrixAt(i * 6 + sg, dummy.matrix);
         trunkMesh.setColorAt(i * 6 + sg, new THREE.Color(sg % 2 === 0 ? TRUNK_BASE : RING_COLS[Math.floor(sg / 2) % 2]));
       }
-      var topX = p.x + dx * p.h * Math.sin(lean), topZ = p.z + dz * p.h * Math.sin(lean), topY = p.h * Math.cos(lean);
+      var topX = p.x + dx * p.h * Math.sin(tilt), topZ = p.z + dz * p.h * Math.sin(tilt), topY = p.h * Math.cos(tilt);
       dummy.position.set(topX, topY, topZ);
       dummy.scale.set(1, 1, 1);
       dummy.rotation.set(0, 0, 0);
@@ -695,16 +765,22 @@
       box(2.4, 0.15, 2.4, 0xe47271, lx, 4.4, lz);
     })();
 
-    // Sunstrand parking lot: asphalt, bay lines, curb, sign.
+    // Sunstrand parking lot (Phase PARK): asphalt, bay lines, curb, sign.
     if (PH.PARKING) {
-      var pad = PH.PARKING.pad;
+      var pk = PH.PARKING;
+      var pad = pk.pad;
       var lot = new THREE.Mesh(new THREE.PlaneGeometry(pad.x1 - pad.x0, pad.z1 - pad.z0), mat(0x46536b));
       lot.rotation.x = -Math.PI / 2; lot.position.set((pad.x0 + pad.x1) / 2, 0.06, (pad.z0 + pad.z1) / 2);
       scene.add(lot);
-      PH.PARKING.carBays.forEach(function (bay) {
+      pk.carBays.forEach(function (bay) {
         var ln = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 6.6), mat(0xffeaca));
         ln.rotation.x = -Math.PI / 2; ln.position.set(bay.x - 1.7, 0.08, bay.z);
         scene.add(ln);
+      });
+      pk.bikeBays.forEach(function (bay) {
+        var bl = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 3.4), mat(0xffeaca));
+        bl.rotation.x = -Math.PI / 2; bl.position.set(bay.x - 1.1, 0.08, bay.z);
+        scene.add(bl);
       });
       // "PARKING" painted on the asphalt at the pad centre (reference §14).
       var labelC = document.createElement('canvas'); labelC.width = 256; labelC.height = 64;
@@ -714,7 +790,7 @@
       var label = new THREE.Mesh(new THREE.PlaneGeometry(10, 2.5),
         new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(labelC), transparent: true }));
       label.rotation.x = -Math.PI / 2;
-      label.position.set(PH.PARKING.centre.x, 0.08, PH.PARKING.centre.z);
+      label.position.set(pk.centre.x, 0.08, pk.centre.z);
       scene.add(label);
       var signC = document.createElement('canvas'); signC.width = 256; signC.height = 96;
       var sg = signC.getContext('2d');
@@ -723,8 +799,8 @@
       sg.fillText('PARKING', 128, 40); sg.fillText('SUNSTRAND', 128, 74);
       var sign = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.9),
         new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signC) }));
-      sign.position.set(PH.PARKING.sign.x, 3.4, PH.PARKING.sign.z);
-      sign.rotation.y = PH.PARKING.sign.yaw;
+      sign.position.set(pk.sign.x, 3.4, pk.sign.z);
+      sign.rotation.y = pk.sign.yaw;
       scene.add(sign);
     }
 
@@ -765,12 +841,12 @@
     // icosahedron head, legs, pelvis block (legs never detach), hair cap,
     // 2 accessories per person, blob shadow.
     var MAXP = 900;
-    var bodyIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.21, 0.24, 0.62, 5), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
+    var bodyIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.265, 0.265, 0.60, 5), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
     var headIM = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.16, 0), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
     // Articulated limbs (reference §10): two legs that swing with the walk
     // phase, two arms swinging opposite, shoes at the feet — so people read
     // as jointed figures, not chess pawns.
-    var legLIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.15, 0.5, 0.2), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
+    var legLIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.19, 0.78, 0.21), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
     var legRIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.15, 0.5, 0.2), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
     var armLIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.11, 0.45, 0.14), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
     var armRIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.11, 0.45, 0.14), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
@@ -974,9 +1050,10 @@
         g.add(cone); cones.push(cone);
       });
       var poolMat = new THREE.MeshBasicMaterial({ color: 0xffd9a0, map: radialTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
-      var pool = new THREE.Mesh(new THREE.CircleGeometry(1.6, 14), poolMat);
+      var pool = new THREE.Mesh(new THREE.CircleGeometry(2.0, 14), poolMat);
       pool.rotation.x = -Math.PI / 2;
-      pool.position.set(0, 0.05, frontZ + 6.5);
+      pool.scale.set(1.2, 1.8, 1);
+      pool.position.set(0, 0.05, frontZ + 7.0);
       pool.visible = false;
       g.add(pool);
       extras.cones = cones; extras.coneMat = coneMat; extras.pool = pool; extras.poolMat = poolMat;
@@ -1343,37 +1420,56 @@
       var w = game.extras.weather;
       return (w && w.active) ? w.intensity : 0;
     }
-    function cameraDistance(target, want) {
+    // Ray state shared by the camera: the parking test slices
+    // cameraDistance verbatim and calls it with these three names as
+    // free variables, so they live at world scope and follow() sets
+    // them before every cameraDistance call.
+    var buildings = null, target = null, fullOffset = null;
+    function cameraDistance(distance) {
       // Pull the camera in when a building blocks the ray (min 0.70).
-      var d = want;
+      // The ray runs from the target (eye height) along fullOffset; a
+      // demolished building never blocks it, so the camera never
+      // collapses inside the Sunstrand lot.
+      var d = distance;
       var steps = 12;
       for (var i = 1; i <= steps; i++) {
-        var t = (i / steps) * want;
-        var x = target.x - Math.cos(cam.yaw) * Math.cos(cam.pitch) * t;
-        var z = target.z - Math.sin(cam.yaw) * Math.cos(cam.pitch) * t;
-        var y = target.y + 1.4 + Math.sin(cam.pitch) * t;
-        if (game.blocked(x, z) && y < 12) { d = Math.max(0.7, t - 0.6); break; }
+        var t = (i / steps) * distance;
+        var x = target.x + fullOffset.x * (t / distance);
+        var z = target.z + fullOffset.z * (t / distance);
+        var y = target.y + fullOffset.y * (t / distance);
+        var hit = Math.abs(x) > 216 || Math.abs(z) > 216;
+        if (!hit) {
+          for (var bi = 0; bi < buildings.length; bi++) {
+            var b = buildings[bi];
+            if (b.demolished) continue;
+            if (x > b.minX - 0.4 && x < b.maxX + 0.4 && z > b.minZ - 0.4 && z < b.maxZ + 0.4) { hit = true; break; }
+          }
+        }
+        if (hit && y < 12) { d = Math.max(0.7, t - 0.6); break; }
       }
       return d;
     }
-    function follow(dt, input) {
-      var p = game.player;
-      var target = { x: p.x, y: p.y, z: p.z };
-      if (input && (input.lookDX || input.lookDY)) {
-        cam.yaw -= input.lookDX * 0.004;
-        cam.pitch = clamp(cam.pitch + input.lookDY * 0.003, -1.15, 1.24);
-        cam.lookIdle = 0;
-      } else cam.lookIdle += dt;
-      var driving = p.vehicle !== null && Math.abs(p.speed) > 2;
-      if (driving && cam.lookIdle > 1.8) {
-        cam.yaw += PH.angle(cam.yaw, p.yaw) * Math.min(1, dt * 1.6);
+    function follow(dt, player, car, orbit) {
+      var p = player;
+      if (orbit.lookDX || orbit.lookDY) {
+        orbit.yaw -= orbit.lookDX * 0.004;
+        orbit.pitch = clamp(orbit.pitch + orbit.lookDY * 0.003, -1.15, 1.24);
+        orbit.lookIdle = 0;
+      } else orbit.lookIdle += dt;
+      var driving = car !== null && Math.abs(p.speed) > 2;
+      if (driving && orbit.lookIdle > 1.8) {
+        orbit.yaw += PH.angle(orbit.yaw, p.yaw) * Math.min(1, dt * 1.6);
       }
-      var want = (input && input.zoom) || (p.vehicle !== null ? 10.5 : 8);
-      var got = cameraDistance(target, want);
-      cam.dist += (got - cam.dist) * Math.min(1, dt * 8);
-      var cx = target.x - Math.cos(cam.yaw) * Math.cos(cam.pitch) * cam.dist;
-      var cz = target.z - Math.sin(cam.yaw) * Math.cos(cam.pitch) * cam.dist;
-      var cy = target.y + 1.4 + Math.sin(cam.pitch) * cam.dist;
+      var want = orbit.zoom || (car !== null ? 10.5 : 8);
+      buildings = game.city.buildings;
+      target = { x: p.x, y: p.y + 1.4, z: p.z };
+      var horiz = Math.cos(orbit.pitch);
+      fullOffset = { x: -Math.cos(orbit.yaw) * horiz * want, y: Math.sin(orbit.pitch) * want, z: -Math.sin(orbit.yaw) * horiz * want };
+      var got = cameraDistance(want);
+      orbit.dist += (got - orbit.dist) * Math.min(1, dt * 8);
+      var cx = target.x + fullOffset.x * (orbit.dist / want);
+      var cz = target.z + fullOffset.z * (orbit.dist / want);
+      var cy = target.y + fullOffset.y * (orbit.dist / want);
       var k = 1 - Math.exp(-dt * 13);
       camera.position.x += (cx - camera.position.x) * k;
       camera.position.y += (cy - camera.position.y) * k;
@@ -1381,7 +1477,7 @@
       if (dist(camera.position.x, camera.position.z, target.x, target.z) > 32) {
         camera.position.set(cx, cy, cz);
       }
-      camera.lookAt(target.x, target.y + 1.2, target.z);
+      camera.lookAt(target.x, target.y - 0.2, target.z);
     }
     function headlights() {
       // Headlight cones on the player's car + police cars at night.
@@ -1393,29 +1489,31 @@
       if (kind === 'hero') return {
         body: 0x3ca7b6, legs: 0x2a2a33, skin: 0xb9744e, hair: 0x34313d, shoes: 0xf1e8d0,
         acc: [
-          { c: 0xe46b4e, x: 0, y: 0.45, z: -0.22, sx: 0.34, sy: 0.42, sz: 0.16 },
-          { c: 0xffcf75, x: 0, y: 0.45, z: -0.31, sx: 0.34, sy: 0.08, sz: 0.04 },
-          { c: 0x293c54, x: 0.22, y: 0.25, z: 0.05, sx: 0.08, sy: 0.42, sz: 0.06 }
+          { c: 0xe46b4e, x: 0, y: 1.08, z: -0.22, sx: 0.34, sy: 0.42, sz: 0.16 },
+          { c: 0xffcf75, x: 0, y: 1.08, z: -0.31, sx: 0.34, sy: 0.08, sz: 0.04 },
+          { c: 0x293c54, x: 0.28, y: 1.0, z: 0.05, sx: 0.08, sy: 0.42, sz: 0.06 }
         ]
       };
       if (kind === 'officer') return {
         body: 0x254164, legs: 0x22334e, skin: 0xd8a878, hair: 0x203753, shoes: 0x172233,
         acc: [
-          { c: 0xf4ce83, x: 0, y: 0.48, z: 0.14, sx: 0.12, sy: 0.08, sz: 0.04 },
-          { c: 0x17293e, x: 0, y: 0.1, z: 0.14, sx: 0.36, sy: 0.2, sz: 0.05 },
-          { c: 0x192331, x: 0.24, y: 0.3, z: 0.1, sx: 0.08, sy: 0.36, sz: 0.06 }
+          { c: 0xf4ce83, x: 0, y: 1.15, z: 0.20, sx: 0.12, sy: 0.08, sz: 0.04 },
+          { c: 0x17293e, x: 0, y: 1.08, z: 0.20, sx: 0.36, sy: 0.2, sz: 0.05 },
+          { c: 0x192331, x: 0.28, y: 1.0, z: 0.1, sx: 0.08, sy: 0.36, sz: 0.06 },
+          { c: 0x1a273c, x: 0, y: 0.86, z: 0, sx: 0.56, sy: 0.07, sz: 0.40 },
+          { c: 0x8d9fad, x: 0, y: 0.86, z: 0.21, sx: 0.10, sy: 0.06, sz: 0.04 }
         ]
       };
       if (kind === 'enemy') return {
         body: 0x873b47, legs: 0x272b3e, skin: 0xc68c66, hair: 0x322637, shoes: 0x222222,
         acc: [
-          { c: 0xec6976, x: 0, y: 0.48, z: 0.14, sx: 0.14, sy: 0.1, sz: 0.04 },
-          { c: 0x2c303e, x: 0.24, y: 0.3, z: 0.1, sx: 0.08, sy: 0.4, sz: 0.06 }
+          { c: 0xec6976, x: 0, y: 1.15, z: 0.20, sx: 0.14, sy: 0.1, sz: 0.04 },
+          { c: 0x2c303e, x: 0.28, y: 1.0, z: 0.1, sx: 0.08, sy: 0.4, sz: 0.06 }
         ]
       };
       if (kind === 'contact') return {
         body: PH.CHECKPOINT_COLORS[ref % 5], legs: 0x2a2a33, skin: 0xd8a878, hair: PH.CHECKPOINT_COLORS[ref % 5], shoes: 0x222222,
-        acc: [{ c: 0xffedb8, x: 0, y: 0.48, z: 0.14, sx: 0.12, sy: 0.1, sz: 0.04 }]
+        acc: [{ c: 0xffedb8, x: 0, y: 1.15, z: 0.20, sx: 0.12, sy: 0.1, sz: 0.04 }]
       };
       if (kind === 'taxiPassenger') return {
         body: 0xf8cf69, legs: 0x3a3a44, skin: 0xd8a878, hair: 0x34313d, shoes: 0x222222, acc: []
@@ -1453,7 +1551,7 @@
         dummy.rotation.order = 'XYZ';
       }
       function shoe(mesh, lx, ang) {
-        var fx = lx, fy = 0.49 - 0.5 * Math.cos(ang) + 0.045, fz = -0.5 * Math.sin(ang) + 0.05;
+        var fx = lx, fy = 0.78 - 0.78 * Math.cos(ang) + 0.045, fz = -0.78 * Math.sin(ang) + 0.05;
         dummy.position.set(x + (fx * cos + fz * sin) * s, fy * s + bob + y, z + (-fx * sin + fz * cos) * s);
         dummy.rotation.set(0, yaw, 0);
         dummy.scale.set(s, s, s);
@@ -1461,34 +1559,34 @@
         mesh.setMatrixAt(idx, dummy.matrix);
         mesh.setColorAt(idx, tmpColor.setHex(shoeCol));
       }
-      dummy.position.set(x, 0.55 * s + bob + y, z);
+      dummy.position.set(x, 1.08 * s + bob + y, z);
       dummy.rotation.set(0, yaw, 0);
-      dummy.scale.set(s, s, s);
+      dummy.scale.set(s, s, 0.7 * s);
       dummy.updateMatrix();
       bodyIM.setMatrixAt(idx, dummy.matrix);
       bodyIM.setColorAt(idx, tmpColor.setHex(colors.body));
-      dummy.position.set(x, 0.97 * s + bob + y, z);
+      dummy.position.set(x, 1.57 * s + bob + y, z);
       dummy.rotation.set(0, yaw, 0);
-      dummy.scale.set(s, s, s);
+      dummy.scale.set(s, 1.2 * s, s);
       dummy.updateMatrix();
       headIM.setMatrixAt(idx, dummy.matrix);
       headIM.setColorAt(idx, tmpColor.setHex(colors.skin));
       // Legs swing opposite each other; arms swing opposite their own side's leg.
-      limb(legLIM, -0.09, 0.49, 0.5, -swing, colors.legs);
-      limb(legRIM, 0.09, 0.49, 0.5, swing, colors.legs);
-      limb(armLIM, -0.28, 0.8, 0.45, swing, colors.body);
-      limb(armRIM, 0.28, 0.8, 0.45, -swing, colors.body);
+      limb(legLIM, -0.09, 0.78, 0.78, -swing, colors.legs);
+      limb(legRIM, 0.09, 0.78, 0.78, swing, colors.legs);
+      limb(armLIM, -0.28, 1.32, 0.45, swing, colors.body);
+      limb(armRIM, 0.28, 1.32, 0.45, -swing, colors.body);
       shoe(shoeLIM, -0.09, -swing);
       shoe(shoeRIM, 0.09, swing);
       // Pelvis block connects the waist so legs never detach (reference §10).
-      dummy.position.set(x, 0.31 * s + bob + y, z);
+      dummy.position.set(x, 0.78 * s + bob + y, z);
       dummy.rotation.set(0, yaw, 0);
       dummy.scale.set(s, s, s);
       dummy.updateMatrix();
       pelvisIM.setMatrixAt(idx, dummy.matrix);
       pelvisIM.setColorAt(idx, tmpColor.setHex(colors.legs));
       // Hair cap (officer cap / contact hat sewarna baju).
-      dummy.position.set(x, 1.0 * s + bob + y, z);
+      dummy.position.set(x, 1.72 * s + bob + y, z);
       dummy.rotation.set(0, yaw, 0);
       dummy.scale.set(s, 0.6 * s, s);
       dummy.updateMatrix();
@@ -1554,6 +1652,8 @@
       bulbMat.color.copy(hexLerp(0x49525c, 0xffffff, plnNightF));
       bodyMat.emissiveIntensity = plnNightF * 0.9;
       towerBodyMat.emissiveIntensity = plnNightF * 0.9;
+      // Lit window panes: dark glass by day, warm glass at night.
+      winLitMat.color.copy(hexLerp(0x17303b, 0xffffff, plnNightF));
       // Rain: 700 slanted lines in a 92x30 box around the camera (§13).
       var rainOpacity = 0.5 * storm;
       rainMat.opacity = rainOpacity;
@@ -1721,11 +1821,11 @@
         }
         if (ud.extras && ud.extras.cones) {
           // Headlight cones at night for occupied cars (reference §5/§8.1).
-          var hOn = plnNightF > 0.25 && !!car.driver;
+          var hOn = plnNightF > 0.02 && !!car.driver;
           for (var ci = 0; ci < ud.extras.cones.length; ci++) ud.extras.cones[ci].visible = hOn;
-          ud.extras.coneMat.opacity = 0.32 * plnNightF;
+          ud.extras.coneMat.opacity = 0.42 * plnNightF;
           ud.extras.pool.visible = hOn;
-          ud.extras.poolMat.opacity = 0.3 * plnNightF;
+          ud.extras.poolMat.opacity = 0.26 * plnNightF;
         }
         if (ud.extras && ud.extras.rider) ud.extras.rider.visible = !!car.driver;
         if (ud.extras && ud.extras.foam) ud.extras.foam.visible = (car.speed || 0) > 3;
@@ -1900,7 +2000,10 @@
         }
       }
 
-      follow(dt, input);
+      cam.lookDX = input ? input.lookDX || 0 : 0;
+      cam.lookDY = input ? input.lookDY || 0 : 0;
+      cam.zoom = input ? input.zoom || 0 : 0;
+      follow(dt, game.player, game.getCar(), cam);
     }
 
     function render() {
