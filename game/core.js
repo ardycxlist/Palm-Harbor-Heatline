@@ -57,8 +57,8 @@
   function makeCity(seed) {
     var r = rng(seed), buildings = [], blocks = [], parks = [], props = [];
     var bi = 0;
-    for (var gx = 0; gx < 6; gx++) {
-      for (var gz = 0; gz < 6; gz++) {
+    for (var gz = 0; gz < 6; gz++) {
+      for (var gx = 0; gx < 6; gx++) {
         var x0 = ROADS[gx] + 9, x1 = ROADS[gx + 1] - 9;
         var z0 = ROADS[gz] + 9, z1 = ROADS[gz + 1] - 9;
         var cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
@@ -97,10 +97,11 @@
           }
           if (!placed) continue;
           var h = kind === 'tower' ? 27 + r() * 51 : kind === 'warehouse' ? 7 + r() * 6 : 8 + r() * 20;
+          var idx = bi++;
           var b = {
-            index: bi++, x: bx, z: bz, w: w, d: dep, h: h,
+            index: idx, x: bx + w / 2, z: bz + dep / 2, w: w, d: dep, h: h,
             minX: bx, maxX: bx + w, minZ: bz, maxZ: bz + dep,
-            color: PALETTE[bi % PALETTE.length], district: d,
+            color: PALETTE[idx % PALETTE.length], district: d,
             tower: h > 33, warehouse: kind === 'warehouse',
             lit: 0.18 + r() * 0.22, roof: r(),
             crown: h > 33 ? 2.4 + r() * 6 : 0,
@@ -119,16 +120,8 @@
         if (r() < 0.75) props.push({ kind: 'palm', x: x0 + 3, z: (z0 + z1) / 2, h: 5.05 + r() * 1.9, lean: 0.26 + r() * 0.31, planter: r() < 0.8 });
       }
     }
-    // The Sunstrand lot (reference §13): the low residential building
-    // nearest (170, 42) is demolished into the parking pad, so the renderer
-    // and the collision map agree from the first frame.
-    var lotB = null, lotD = 1e9;
-    for (var li = 0; li < buildings.length; li++) {
-      var lb = buildings[li];
-      var ld = dist((lb.minX + lb.maxX) / 2, (lb.minZ + lb.maxZ) / 2, 170, 42);
-      if (ld < lotD) { lotD = ld; lotB = lb; }
-    }
-    if (lotB) lotB.demolished = true;
+    // The Sunstrand lot is demolished on the FIRST TICK by parking.js, not
+    // here: a fresh Game must stay untouched (hash pin, live collision).
     return { seed: seed, buildings: buildings, blocks: blocks, parks: parks, props: props };
   }
 
@@ -304,21 +297,27 @@
     var types = ['sedan', 'sedan', 'sedan', 'sport', 'van', 'sedan', 'taxi', 'sedan'];
     // PAINT palette (reference §8.1) — shared by car paint and citizen clothes.
     var colors = [0x3cc8cf, 0xf4bb45, 0xe46c70, 0xede4cf, 0x567eb8, 0x4d6967, 0x9c72b0, 0xccd0d3, 0x353b46];
+    // Circulating traffic first (ids 2-61, 60 cars): on a road lane (±3.4),
+    // driver aboard, cruising. Parked stock last (ids 62+, the rest): at the
+    // roadside offset (±6.8, reference §2.1), no driver — so the parked pool
+    // carries the high ids.
     for (var i = 2; i < nCars; i++) {
+      var circulating = i < 62;
       var road = ROADS[Math.floor(r() * ROADS.length)];
       var along = -192 + r() * 384;
       var horizontal = r() < 0.5;
       var type = types[Math.floor(r() * types.length)];
-      var parked = r() < 0.3;
+      var off = circulating ? 3.4 : 6.8;
+      var side = r() < 0.5 ? -off : off;
       this.cars.push({
         id: i, type: type === 'taxi' ? 'sedan' : type, taxi: type === 'taxi',
         name: type.toUpperCase(), color: type === 'taxi' ? 0xfebd46 : colors[Math.floor(r() * colors.length)],
-        x: horizontal ? along : road + (r() < 0.5 ? -3.4 : 3.4),
-        z: horizontal ? road + (r() < 0.5 ? -3.4 : 3.4) : along,
+        x: horizontal ? along : road + side,
+        z: horizontal ? road + side : along,
         yaw: horizontal ? (r() < 0.5 ? 0 : Math.PI) : (r() < 0.5 ? Math.PI / 2 : -Math.PI / 2),
         speed: 0, hp: 100, owned: false, claimed: false, stolen: false, missionCar: false,
-        driver: !parked, parked: parked, fuel: 100, throttle: 0,
-        cruise: 11 + r() * 3, lane: (r() < 0.5 ? -3.4 : 3.4), route: null, routeI: 0
+        driver: circulating, parked: !circulating, fuel: 100, throttle: 0,
+        cruise: 11 + r() * 3, lane: side, route: null, routeI: 0
       });
     }
     for (var j = 0; j < nPeds; j++) {

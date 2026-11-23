@@ -67,25 +67,31 @@
       if (c.type === 'bike' && c.parked && !c.owned && !c.claimed) bikes.push(c);
     }
     bikes.sort(function (a, b2) { return a.id - b2.id; });
+    var bikeIds = [];
     for (var k = 0; k < Math.min(3, bikes.length); k++) {
       var bay = PARKING.bikeBays[k];
       bikes[k].x = bay.x; bikes[k].z = bay.z; bikes[k].yaw = bay.yaw;
+      bikeIds.push(bikes[k].id);
     }
-    // 5 nearest parked cars into the car bays, alternating rows so the lot
-    // fills evenly (north 1, south 1, north 2, south 2, north 3).
+    // 5 nearest parked cars into the car bays: the five nearest by distance,
+    // then into bays 0-4 in id order (the set and the bay order are pinned).
     var parked = [];
     for (var m = 0; m < this.cars.length; m++) {
       var pc = this.cars[m];
-      if (pc.parked && !pc.owned && !pc.claimed && pc.type !== 'bike' && pc.type !== 'boat') {
+      if (pc.parked && !pc.owned && !pc.claimed && !pc.missionCar && pc.type !== 'bike' && pc.type !== 'boat') {
         parked.push({ car: pc, d: dist(pc.x, pc.z, PARKING.centre.x, PARKING.centre.z) });
       }
     }
     parked.sort(function (a, b2) { return a.d - b2.d; });
-    var fillOrder = [0, 5, 1, 6, 2];
-    for (var n = 0; n < Math.min(5, parked.length); n++) {
-      var cb = PARKING.carBays[fillOrder[n]];
-      parked[n].car.x = cb.x; parked[n].car.z = cb.z; parked[n].car.yaw = cb.yaw;
+    var chosen = parked.slice(0, 5).map(function (e) { return e.car; });
+    chosen.sort(function (a, b2) { return a.id - b2.id; });
+    var carIds = [];
+    for (var n = 0; n < chosen.length; n++) {
+      var cb = PARKING.carBays[n];
+      chosen[n].x = cb.x; chosen[n].z = cb.z; chosen[n].yaw = cb.yaw;
+      carIds.push(chosen[n].id);
     }
+    this.parking = { cars: carIds, bikes: bikeIds, demolished: !!b };
   };
 
   // Runs AFTER the inner updates (motorcycle's ensureBikes included), so the
