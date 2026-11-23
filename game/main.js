@@ -72,8 +72,8 @@
       // event (+3 s), not to script eval: under SwiftShader the page
       // load itself is slow, so an eval-based timer fires before the
       // scene is up and the dialogue toasts expire unseen. startMission()
-      // pushes the intro + 3 dialog events as BRIEF toasts (4.5 s each)
-      // — screenshot inside that window, ~load+5 s.
+      // pushes the intro + 3 dialog events as BRIEF toasts (9 s each for
+      // dialogue) — screenshot inside that window, ~load+5 s.
       game.player.x = 12; game.player.z = 8;
       game.player.yaw = 0.52;
       input.zoom = 7;
@@ -136,10 +136,15 @@
     el.appendChild(c); el.appendChild(b);
     box.appendChild(el);
     toastCount++;
+    // Dialogue (BRIEF) toasts persist 9 s so a whole exchange stays
+    // readable; other toasts keep 4.5 s. 4.5 s was our own shell number,
+    // not a spec value — the memo requires the mission dialogue readable
+    // in shot 3, and a 4.5 s toast never reaches the screen under
+    // software rendering (one frame takes about as long).
     setTimeout(function () {
       if (el.parentNode) el.parentNode.removeChild(el);
       toastCount--;
-    }, 4500);
+    }, cls === 'brief' ? 9000 : 4500);
   }
   function drainEvents() {
     var evs = game.events.splice(0);
@@ -668,13 +673,14 @@
     }
     world.update(dt, look);
     world.render();
-    // Drain game events into toasts AFTER the render: a toast's 4.5 s
-    // removal timer starts at creation, and a software-rendered frame
-    // takes about as long — draining before the render meant the timer
-    // fired before the compositor ever presented a frame containing the
-    // toast, so mission dialogue toasts were never visible on screen.
-    // Draining after the render puts them on the frame just presented;
-    // in normal play this delays a toast by one frame (33 ms).
+    // Drain game events into toasts AFTER the render: a toast's removal
+    // timer (9 s for dialogue) starts at creation, and a
+    // software-rendered frame takes about as long — draining before the
+    // render meant the timer fired before the compositor ever presented
+    // a frame containing the toast, so mission dialogue toasts were
+    // never visible on screen. Draining after the render puts them on
+    // the frame just presented; in normal play this delays a toast by
+    // one frame (33 ms).
     if (!paused && $('startOverlay').classList.contains('hidden')) drainEvents();
     if ($('startOverlay').classList.contains('hidden')) { uiDt = dt; updateUI(); }
   }
