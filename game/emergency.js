@@ -208,6 +208,13 @@
     return out;
   };
 
+  // Lazy accessor: headless runs (and the lot peace test) reach the
+  // emergency system through the game, not through the browser shell.
+  PH.Game.prototype.ensureEmergency = function () {
+    if (!this.emergency) this.emergency = new EmergencySystem(this);
+    return this.emergency;
+  };
+
   PH.EmergencySystem = EmergencySystem;
   PH.TOW_DEPOT = TOW_DEPOT;
 })();

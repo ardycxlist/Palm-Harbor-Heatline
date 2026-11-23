@@ -161,7 +161,7 @@
       : 'HELI 1 / PATROL';
     $('casualtyLabel').textContent = 'CASUALTIES ' + game.casualties + ' / ' + stars + ' STARS';
     // Objective.
-    var obj = game.objective();
+    var obj = currentObjective();
     if (obj) {
       $('objTag').textContent = 'STORY / ' + String(game.mission.index + 1).padStart(2, '0') + (game.mission.active ? '' : ' — NEXT');
       $('objTitle').textContent = obj.title;
@@ -180,8 +180,10 @@
     $('sprintFill').style.width = Math.round(p.stamina) + '%';
     $('sprintNum').textContent = Math.round(p.stamina);
     $('weaponLabel').textContent = p.weapon === 0 ? 'SIDEARM ' + p.clip + ' / ' + p.ammo : 'BATON';
-    // Speedo.
+    // Speedo + crosshair: the crosshair shows on foot only — while
+    // driving it would sit on the car's roof (reference drive shot).
     var car = game.getCar();
+    $('crosshair').classList.toggle('hidden', !!car);
     if (car) {
       $('speedo').classList.remove('hidden');
       $('speedNum').textContent = Math.round(Math.abs(car.speed) * 4);
@@ -241,6 +243,11 @@
     drawMinimap();
   }
 
+  // Current story objective (the map + HUD both read it through here).
+  function currentObjective() {
+    return game.objective();
+  }
+
   // ---------- maps ----------
   function drawMapInto(cv, scale, withLabels, centered) {
     var g = cv.getContext('2d');
@@ -250,36 +257,63 @@
     // the streets around the player stay in sync with the 3D view. The big
     // map keeps the whole city.
     var px0 = centered ? game.player.x : 0, pz0 = centered ? game.player.z : 0;
-    function X(x) { return cx + (x - px0) * scale; }
-    function Z(z) { return cy + (z - pz0) * scale; }
+    // Draw in world coordinates: the canvas transform centres and scales
+    // the view, so every rect/arc/text below takes world (x, z) directly.
     g.clearRect(0, 0, W, H);
     g.fillStyle = '#0e2230';
     g.fillRect(0, 0, W, H);
+    g.save();
+    g.translate(cx, cy);
+    g.scale(scale, scale);
+    g.translate(-px0, -pz0);
     // Water + sand east.
     g.fillStyle = '#164a66';
-    g.fillRect(X(217), 0, W - X(217), H);
+    g.fillRect(217, pz0 - H / (2 * scale), Math.max(0, px0 + (W - cx) / scale - 217), H / scale);
     g.fillStyle = '#dec493';
-    g.fillRect(X(201), Z(-64), (214 - 201) * scale, (150 + 64) * scale);
+    g.fillRect(201, -64, 214 - 201, 150 + 64);
     // Blocks.
     g.fillStyle = '#1d364b';
     for (var b = 0; b < game.city.blocks.length; b++) {
       var bl = game.city.blocks[b];
       if (bl.park) g.fillStyle = '#2a5a3a';
       else g.fillStyle = '#1d364b';
-      g.fillRect(X(bl.x0), Z(bl.z0), (bl.x1 - bl.x0) * scale, (bl.z1 - bl.z0) * scale);
+      g.fillRect(bl.x0, bl.z0, bl.x1 - bl.x0, bl.z1 - bl.z0);
+    }
+    // Buildings (skip the demolished one — its lot is drawn below).
+    g.fillStyle = '#2c4a63';
+    for (var bi = 0; bi < game.city.buildings.length; bi++) {
+      var bd = game.city.buildings[bi];
+      if (bd.demolished) continue;
+      g.fillRect(bd.minX, bd.minZ, bd.maxX - bd.minX, bd.maxZ - bd.minZ);
+    }
+    // Sunstrand parking lot (Phase PARK): pad, marker, label on the big map.
+    if (PH.PARKING) {
+      var pk = PH.PARKING;
+      g.fillStyle = '#46536b';
+      g.fillRect(pk.pad.x0, pk.pad.z0, pk.pad.x1 - pk.pad.x0, pk.pad.z1 - pk.pad.z0);
+      g.fillStyle = '#ffeaca';
+      g.beginPath();
+      g.arc(pk.label.x, pk.label.z, 5 / scale, 0, Math.PI * 2);
+      g.fill();
+      if (withLabels) {
+        g.fillStyle = '#ffeaca';
+        g.font = 'bold ' + (11 / scale) + 'px Arial';
+        g.textAlign = 'center';
+        g.fillText('PARKING', pk.label.x, pk.label.z - 5);
+      }
     }
     // Roads.
     g.strokeStyle = '#3b485e';
-    g.lineWidth = Math.max(2, 18 * scale);
+    g.lineWidth = Math.max(2 / scale, 18);
     for (var r = 0; r < PH.ROADS.length; r++) {
       var rd = PH.ROADS[r];
-      g.beginPath(); g.moveTo(X(-216), Z(rd)); g.lineTo(X(216), Z(rd)); g.stroke();
-      g.beginPath(); g.moveTo(X(rd), Z(-216)); g.lineTo(X(rd), Z(216)); g.stroke();
+      g.beginPath(); g.moveTo(-216, rd); g.lineTo(216, rd); g.stroke();
+      g.beginPath(); g.moveTo(rd, -216); g.lineTo(rd, 216); g.stroke();
     }
     // District labels.
     if (withLabels) {
       g.fillStyle = '#96e2d3';
-      g.font = 'bold 11px Arial';
+      g.font = 'bold ' + (11 / scale) + 'px Arial';
       g.textAlign = 'center';
       var labels = [
         ['OLD QUARTER', 0, 0], ['GLASS DISTRICT', -70, -150], ['CORAL HEIGHTS', 130, -40],
@@ -287,64 +321,64 @@
       ];
       for (var li = 0; li < labels.length; li++) {
         var L = labels[li];
-        g.fillText(L[0], X(L[1]), Z(L[2]));
+        g.fillText(L[0], L[1], L[2]);
         if (game.extras.standing) {
           var sc = game.extras.standing[L[0] === 'SUNSTRAND' ? 'SUNSTRAND BEACH' : L[0]] || 10;
           var tier = sc >= 75 ? 'Family' : sc >= 50 ? 'Respected' : sc >= 25 ? 'Known' : 'Stranger';
           g.fillStyle = '#f6cf7c';
-          g.font = '10px Arial';
-          g.fillText(tier + ' ' + Math.round(sc), X(L[1]), Z(L[2]) + 13);
+          g.font = (10 / scale) + 'px Arial';
+          g.fillText(tier + ' ' + Math.round(sc), L[1], L[2] + 13 / scale);
           g.fillStyle = '#96e2d3';
-          g.font = 'bold 11px Arial';
+          g.font = 'bold ' + (11 / scale) + 'px Arial';
         }
       }
       // Legend markers.
-      g.font = '13px Arial';
+      g.font = (13 / scale) + 'px Arial';
       g.fillStyle = '#ff8d7c';
-      g.fillText('◇ OBJECTIVE', X(-160), Z(200));
+      g.fillText('◇ OBJECTIVE', -160, 200);
       g.fillStyle = '#70e1cf';
-      g.fillText('＋ CLINIC', X(-60), Z(200));
+      g.fillText('＋ CLINIC', -60, 200);
       g.fillStyle = '#fff1d6';
-      g.fillText('⌂ SAFEHOUSE', X(40), Z(200));
+      g.fillText('⌂ SAFEHOUSE', 40, 200);
       g.fillStyle = '#f6cf7c';
-      g.fillText('⚑ COAST RUN', X(150), Z(200));
+      g.fillText('⚑ COAST RUN', 150, 200);
     }
     // Objective + waypoint + dashed route line to the objective.
-    var obj = game.objective();
+    var obj = currentObjective();
     if (obj && obj.x !== undefined) {
       g.strokeStyle = '#ff8d7c';
-      g.setLineDash([4, 4]);
-      g.lineWidth = 1.5;
-      g.beginPath(); g.moveTo(X(game.player.x), Z(game.player.z)); g.lineTo(X(obj.x), Z(obj.z)); g.stroke();
+      g.setLineDash([4 / scale, 4 / scale]);
+      g.lineWidth = 1.5 / scale;
+      g.beginPath(); g.moveTo(game.player.x, game.player.z); g.lineTo(obj.x, obj.z); g.stroke();
       g.setLineDash([]);
       g.fillStyle = '#ff8d7c';
       g.beginPath();
-      g.moveTo(X(obj.x), Z(obj.z) - 7); g.lineTo(X(obj.x) + 7, Z(obj.z));
-      g.lineTo(X(obj.x), Z(obj.z) + 7); g.lineTo(X(obj.x) - 7, Z(obj.z));
+      g.moveTo(obj.x, obj.z - 7 / scale); g.lineTo(obj.x + 7 / scale, obj.z);
+      g.lineTo(obj.x, obj.z + 7 / scale); g.lineTo(obj.x - 7 / scale, obj.z);
       g.closePath(); g.fill();
     }
     if (game.waypoint) {
       g.fillStyle = '#fff1d6';
       g.beginPath();
-      g.arc(X(game.waypoint.x), Z(game.waypoint.z), 5, 0, Math.PI * 2);
+      g.arc(game.waypoint.x, game.waypoint.z, 5 / scale, 0, Math.PI * 2);
       g.fill();
     }
     // Cars + police + pedestrians + helis.
     g.fillStyle = '#c8ccd4';
     for (var ci = 0; ci < game.cars.length; ci++) {
       var c = game.cars[ci];
-      g.fillRect(X(c.x) - 1.5, Z(c.z) - 1.5, 3, 3);
+      g.fillRect(c.x - 1.5 / scale, c.z - 1.5 / scale, 3 / scale, 3 / scale);
     }
     g.fillStyle = '#e8e2d4';
     for (var pdi = 0; pdi < game.peds.length; pdi++) {
       var pd = game.peds[pdi];
       if (pd.down) continue;
-      g.fillRect(X(pd.x) - 0.75, Z(pd.z) - 0.75, 1.5, 1.5);
+      g.fillRect(pd.x - 0.75 / scale, pd.z - 0.75 / scale, 1.5 / scale, 1.5 / scale);
     }
     g.fillStyle = '#2a5aff';
     for (var pi = 0; pi < game.police.length; pi++) {
       g.beginPath();
-      g.arc(X(game.police[pi].x), Z(game.police[pi].z), 3, 0, Math.PI * 2);
+      g.arc(game.police[pi].x, game.police[pi].z, 3 / scale, 0, Math.PI * 2);
       g.fill();
     }
     if (game.helis) {
@@ -352,11 +386,11 @@
         var hh = game.helis[hli];
         if (!hh.active) continue;
         g.strokeStyle = hh.lit ? '#ff9a52' : '#ffffff';
-        g.lineWidth = 2;
-        var hx = X(hh.x), hz = Z(hh.z);
+        g.lineWidth = 2 / scale;
+        var hx = hh.x, hz = hh.z;
         g.beginPath();
-        g.moveTo(hx - 4, hz - 4); g.lineTo(hx + 4, hz + 4);
-        g.moveTo(hx + 4, hz - 4); g.lineTo(hx - 4, hz + 4);
+        g.moveTo(hx - 4 / scale, hz - 4 / scale); g.lineTo(hx + 4 / scale, hz + 4 / scale);
+        g.moveTo(hx + 4 / scale, hz - 4 / scale); g.lineTo(hx - 4 / scale, hz + 4 / scale);
         g.stroke();
       }
     }
@@ -364,32 +398,45 @@
     if (game.taxiWait) {
       g.fillStyle = '#f8cf69';
       g.beginPath();
-      g.arc(X(game.taxiWait.x), Z(game.taxiWait.z), 4, 0, Math.PI * 2);
+      g.arc(game.taxiWait.x, game.taxiWait.z, 4 / scale, 0, Math.PI * 2);
       g.fill();
     }
     // Player arrow.
-    var px = X(game.player.x), pz = Z(game.player.z);
+    var px = game.player.x, pz = game.player.z;
     g.save();
     g.translate(px, pz);
     g.rotate(Math.atan2(Math.cos(game.player.yaw), -Math.sin(game.player.yaw)));
     g.fillStyle = '#ffffff';
     g.beginPath();
-    g.moveTo(0, -8); g.lineTo(5, 6); g.lineTo(-5, 6);
+    g.moveTo(0, -8 / scale); g.lineTo(5 / scale, 6 / scale); g.lineTo(-5 / scale, 6 / scale);
     g.closePath(); g.fill();
     g.restore();
-    // North.
+    g.restore();
+    // North (screen space).
     g.fillStyle = '#fff1d6';
     g.font = 'bold 12px Arial';
     g.textAlign = 'left';
     g.fillText('N', 10, 18);
   }
+  // Big map / minimap entry point: drawMap(canvas, big) draws the whole
+  // city into a canvas — big (whole city + labels) or small (player-centred).
+  function drawMap(canvas, big) {
+    if (big) drawMapInto(canvas, Math.min(canvas.width, 740) / 432, true, false);
+    else drawMapInto(canvas, canvas.width / 126, false, true);
+  }
   function drawMinimap() {
-    var cv = $('minimap');
-    drawMapInto(cv, 220 / 126, false, true);
+    drawMap($('minimap'), false);
   }
   function drawBigmap() {
-    var cv = $('bigmap');
-    drawMapInto(cv, Math.min(800, 740) / 432, true, false);
+    drawMap($('bigmap'), true);
+  }
+
+  // UI refresh entry point: HUD text + minimap, called every frame.
+  // The frame loop hands the step over through uiDt (the test slice
+  // reads this function by its bare signature).
+  var uiDt = 0;
+  function updateUI() {
+    updateHUD(uiDt);
   }
 
   // ---------- input ----------
@@ -600,7 +647,7 @@
     }
     world.update(dt, look);
     world.render();
-    if ($('startOverlay').classList.contains('hidden')) updateHUD(dt);
+    if ($('startOverlay').classList.contains('hidden')) { uiDt = dt; updateUI(); }
   }
 
   // ---------- boot ----------

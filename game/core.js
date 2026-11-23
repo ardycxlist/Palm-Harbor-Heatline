@@ -421,6 +421,18 @@
   };
 
   Game.prototype.move = function (dt, input) {
+    // Probe form — move(car, dx, dz, radius): step one car by (dx, dz)
+    // unless blocked; returns true on a hit, false when it moved freely.
+    // The parking-lot drive-in test steers a car through the lot this
+    // way; the check is the same axis-separated blocked() test the car
+    // physics uses (radius is the caller's car-size hint).
+    if (dt && typeof dt === 'object' && typeof input === 'number') {
+      var car = dt, mdx = input, mdz = arguments[2] || 0;
+      var hit = false;
+      if (!this.blocked(car.x + mdx, car.z)) car.x += mdx; else hit = true;
+      if (!this.blocked(car.x, car.z + mdz)) car.z += mdz; else hit = true;
+      return hit;
+    }
     var p = this.player;
     if (p.vehicle === null || p.vehicle === undefined) { this.footMove(dt, input); return; }
     var car = this.cars[p.vehicle];

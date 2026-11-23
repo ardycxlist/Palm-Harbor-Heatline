@@ -27,7 +27,9 @@
       { x: 161.9, z: 47.8, yaw: Math.PI / 2 }
     ],
     centre: { x: 171.5, z: 42 },
-    sign: { x: 181.5, z: 48.4, yaw: Math.PI / 2, label: 'PARKING / SUNSTRAND' }
+    sign: { x: 181.5, z: 48.4, yaw: Math.PI / 2, label: 'PARKING / SUNSTRAND' },
+    // Map marker + label anchor: the sign spot at the lot's east edge.
+    label: { x: 181.5, z: 48.4 }
   };
 
   PH.Game.prototype.ensureParking = function () {

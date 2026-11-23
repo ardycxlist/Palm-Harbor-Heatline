@@ -210,7 +210,9 @@
     if (car && car.type === 'boat') {
       if (this.updateBoat(dt, input)) return;
     }
-    return prevMove.call(this, dt, input);
+    // Forward every argument: the car-probe form move(car, dx, dz, r)
+    // carries its step in arguments[2]/[3], and call() would drop them.
+    return prevMove.apply(this, arguments);
   };
 
   PH.BEACH = BEACH;
