@@ -235,12 +235,16 @@
   }
 
   // ---------- maps ----------
-  function drawMapInto(cv, scale, withLabels) {
+  function drawMapInto(cv, scale, withLabels, centered) {
     var g = cv.getContext('2d');
     var W = cv.width, H = cv.height;
     var cx = W / 2, cy = H / 2;
-    function X(x) { return cx + x * scale; }
-    function Z(z) { return cy + z * scale; }
+    // The minimap is player-centred (a 126-unit window, reference §5):
+    // the streets around the player stay in sync with the 3D view. The big
+    // map keeps the whole city.
+    var px0 = centered ? game.player.x : 0, pz0 = centered ? game.player.z : 0;
+    function X(x) { return cx + (x - px0) * scale; }
+    function Z(z) { return cy + (z - pz0) * scale; }
     g.clearRect(0, 0, W, H);
     g.fillStyle = '#0e2230';
     g.fillRect(0, 0, W, H);
@@ -298,9 +302,14 @@
       g.fillStyle = '#f6cf7c';
       g.fillText('⚑ COAST RUN', X(150), Z(200));
     }
-    // Objective + waypoint.
+    // Objective + waypoint + dashed route line to the objective.
     var obj = game.objective();
     if (obj && obj.x !== undefined) {
+      g.strokeStyle = '#ff8d7c';
+      g.setLineDash([4, 4]);
+      g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(X(game.player.x), Z(game.player.z)); g.lineTo(X(obj.x), Z(obj.z)); g.stroke();
+      g.setLineDash([]);
       g.fillStyle = '#ff8d7c';
       g.beginPath();
       g.moveTo(X(obj.x), Z(obj.z) - 7); g.lineTo(X(obj.x) + 7, Z(obj.z));
@@ -313,17 +322,36 @@
       g.arc(X(game.waypoint.x), Z(game.waypoint.z), 5, 0, Math.PI * 2);
       g.fill();
     }
-    // Cars + police.
+    // Cars + police + pedestrians + helis.
     g.fillStyle = '#c8ccd4';
     for (var ci = 0; ci < game.cars.length; ci++) {
       var c = game.cars[ci];
       g.fillRect(X(c.x) - 1.5, Z(c.z) - 1.5, 3, 3);
+    }
+    g.fillStyle = '#e8e2d4';
+    for (var pdi = 0; pdi < game.peds.length; pdi++) {
+      var pd = game.peds[pdi];
+      if (pd.down) continue;
+      g.fillRect(X(pd.x) - 0.75, Z(pd.z) - 0.75, 1.5, 1.5);
     }
     g.fillStyle = '#2a5aff';
     for (var pi = 0; pi < game.police.length; pi++) {
       g.beginPath();
       g.arc(X(game.police[pi].x), Z(game.police[pi].z), 3, 0, Math.PI * 2);
       g.fill();
+    }
+    if (game.helis) {
+      for (var hli = 0; hli < game.helis.length; hli++) {
+        var hh = game.helis[hli];
+        if (!hh.active) continue;
+        g.strokeStyle = hh.lit ? '#ff9a52' : '#ffffff';
+        g.lineWidth = 2;
+        var hx = X(hh.x), hz = Z(hh.z);
+        g.beginPath();
+        g.moveTo(hx - 4, hz - 4); g.lineTo(hx + 4, hz + 4);
+        g.moveTo(hx + 4, hz - 4); g.lineTo(hx - 4, hz + 4);
+        g.stroke();
+      }
     }
     // Taxi passenger.
     if (game.taxiWait) {
@@ -350,11 +378,11 @@
   }
   function drawMinimap() {
     var cv = $('minimap');
-    drawMapInto(cv, 220 / 432, false);
+    drawMapInto(cv, 220 / 126, false, true);
   }
   function drawBigmap() {
     var cv = $('bigmap');
-    drawMapInto(cv, Math.min(800, 740) / 432, true);
+    drawMapInto(cv, Math.min(800, 740) / 432, true, false);
   }
 
   // ---------- input ----------

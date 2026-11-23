@@ -326,8 +326,8 @@
       var roadZ = ROADS[Math.floor(r() * ROADS.length)];
       var onXRoad = r() < 0.5;
       this.peds.push({
-        id: j, x: onXRoad ? roadX + (r() < 0.5 ? -7.5 : 7.5) : -210 + r() * 420,
-        z: onXRoad ? -210 + r() * 420 : roadZ + (r() < 0.5 ? -7.5 : 7.5),
+        id: j, x: onXRoad ? roadX + (r() < 0.5 ? -12 : 12) : -210 + r() * 420,
+        z: onXRoad ? -210 + r() * 420 : roadZ + (r() < 0.5 ? -12 : 12),
         yaw: r() * Math.PI * 2, speed: 0.49, fear: 0, size: 0.91 + (j % 5) * 0.041,
         color: colors[Math.floor(r() * colors.length)],
         skin: [0xc68c66, 0x734933, 0xe2b38d, 0xa66b46][j % 4],
@@ -336,6 +336,19 @@
         down: false, wait: r() * 3
       });
     }
+  };
+
+  // Whether a point is on a sidewalk: the 9.5-17 unit band from the nearest
+  // road centreline, along either axis — the ring around each block
+  // (reference §5/§10: pedestrians walk the sidewalk, inset 12).
+  Game.prototype.onSidewalk = function (x, z) {
+    function dRoad(v) {
+      var best = 1e9;
+      for (var i = 0; i < ROADS.length; i++) { var d = Math.abs(v - ROADS[i]); if (d < best) best = d; }
+      return best;
+    }
+    var ux = dRoad(x), uz = dRoad(z);
+    return (ux >= 9.5 && ux <= 17) || (uz >= 9.5 && uz <= 17);
   };
 
   Game.prototype.phaseOf = function (clock) {
@@ -814,7 +827,11 @@
       var sp = fear ? 0.82 : 0.49;
       var px = ped.x + Math.cos(ped.yaw) * sp * dt;
       var pz = ped.z + Math.sin(ped.yaw) * sp * dt;
-      if (this.blocked(px, pz) || Math.abs(px) > 214 || Math.abs(pz) > 214) {
+      // Pedestrians walk the sidewalks: they stay on the sidewalk ring
+      // around their block and turn when the next step would leave it; only
+      // a scared pedestrian may cross the road to flee.
+      if (this.blocked(px, pz) || Math.abs(px) > 214 || Math.abs(pz) > 214 ||
+          (!fear && !this.onSidewalk(px, pz))) {
         ped.yaw += (r() - 0.5) * 2.4;
       } else {
         ped.x = px; ped.z = pz;

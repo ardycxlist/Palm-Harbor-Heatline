@@ -26,19 +26,19 @@
   function buildingTextures(darkPalette) {
     var c = document.createElement('canvas'); c.width = 128; c.height = 128;
     var g = c.getContext('2d');
-    g.fillStyle = '#9aa4a8'; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = '#e8e2d4'; g.fillRect(0, 0, 128, 128);
     var e = document.createElement('canvas'); e.width = 128; e.height = 128;
     var ge = e.getContext('2d');
     ge.fillStyle = '#000'; ge.fillRect(0, 0, 128, 128);
     var litColors = ['#ffc786', '#81dfed', '#ff9d94', '#ffe9bb'];
     var darkColors = darkPalette ? darkPalette.map(function (h) { return '#' + ('000000' + h.toString(16)).slice(-6); }) : ['#385974', '#467990', '#668b9e', '#506581', '#397081'];
     var r = PH.rng(1234);
-    for (var y = 8; y < 120; y += 16) {
-      for (var x = 8; x < 120; x += 16) {
+    for (var y = 8; y < 120; y += 24) {
+      for (var x = 8; x < 120; x += 24) {
         var lit = r() < 0.3;
         g.fillStyle = lit ? litColors[Math.floor(r() * litColors.length)] : darkColors[Math.floor(r() * darkColors.length)];
-        g.fillRect(x, y, 9, 11);
-        if (lit) { ge.fillStyle = '#fff'; ge.fillRect(x, y, 9, 11); }
+        g.fillRect(x, y, 15, 19);
+        if (lit) { ge.fillStyle = '#fff'; ge.fillRect(x, y, 15, 19); }
       }
     }
     var map = new THREE.CanvasTexture(c);
@@ -61,14 +61,14 @@
   }
 
   function districtBoardTexture(title, name) {
-    var c = document.createElement('canvas'); c.width = 512; c.height = 128;
+    var c = document.createElement('canvas'); c.width = 896; c.height = 128;
     var g = c.getContext('2d');
-    g.fillStyle = '#1d364b'; g.fillRect(0, 0, 512, 128);
-    g.strokeStyle = '#f4dcb9'; g.lineWidth = 4; g.strokeRect(6, 6, 500, 116);
-    g.fillStyle = '#f4dcb9'; g.font = 'bold 37px Georgia'; g.textAlign = 'center';
-    g.fillText(title, 256, 52);
-    g.fillStyle = '#96e2d3'; g.font = '24px Arial';
-    g.fillText(name, 256, 96);
+    g.fillStyle = '#1d364b'; g.fillRect(0, 0, 896, 128);
+    g.strokeStyle = '#f4dcb9'; g.lineWidth = 4; g.strokeRect(6, 6, 884, 116);
+    g.fillStyle = '#f4dcb9'; g.font = 'bold 48px Georgia'; g.textAlign = 'center';
+    g.fillText(title, 448, 54);
+    g.fillStyle = '#96e2d3'; g.font = '32px Arial';
+    g.fillText(name, 448, 100);
     return new THREE.CanvasTexture(c);
   }
 
@@ -428,25 +428,28 @@
     // Palms: leaning ringed trunks (3 stacked segments), 9-leaf crowns on a
     // base ball, square planters (reference §7).
     var palms = game.city.props.filter(function (p) { return p.kind === 'palm'; });
-    var trunkMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.22, 1, 6), mat(0xffffff), Math.max(1, palms.length * 3));
+    var trunkMesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.22, 1, 6), mat(0xffffff), Math.max(1, palms.length * 6));
     var leafColors = [0x196856, 0x2e8768, 0x53a66c, 0x3c925b];
-    var leafMesh = new THREE.InstancedMesh(new THREE.ConeGeometry(0.42, 1, 4), mat(0xffffff), Math.max(1, palms.length * 9));
+    var leafMesh = new THREE.InstancedMesh(new THREE.ConeGeometry(0.55, 1, 4), mat(0xffffff), Math.max(1, palms.length * 9));
     var crownMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 8, 6), mat(0x536843), Math.max(1, palms.length));
     var planterMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.6, 0.5, 1.6), mat(0xedc4a5), Math.max(1, palms.length));
     var soilMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1.4, 0.12, 1.4), mat(0x695a61), Math.max(1, palms.length));
     var RING_COLS = [0xa47e65, 0xba9875];
+    var TRUNK_BASE = 0x8e6556;
     palms.forEach(function (p, i) {
       var az = (i * 2.399) % (Math.PI * 2);
       var dx = Math.cos(az), dz = Math.sin(az);
       var lean = p.lean || 0.4;
-      for (var sg = 0; sg < 3; sg++) {
-        var fy = p.h * (sg + 0.5) / 3;
+      // Six trunk segments: dark brown base with alternating ring bands,
+      // so the trunk reads as a palm trunk, not a flat orange plank.
+      for (var sg = 0; sg < 6; sg++) {
+        var fy = p.h * (sg + 0.5) / 6;
         dummy.position.set(p.x + dx * fy * Math.sin(lean), fy * Math.cos(lean), p.z + dz * fy * Math.sin(lean));
-        dummy.scale.set(1, p.h / 3, 1);
+        dummy.scale.set(1, p.h / 6, 1);
         dummy.rotation.set(dz * lean, 0, -dx * lean);
         dummy.updateMatrix();
-        trunkMesh.setMatrixAt(i * 3 + sg, dummy.matrix);
-        trunkMesh.setColorAt(i * 3 + sg, new THREE.Color(RING_COLS[sg % 2]));
+        trunkMesh.setMatrixAt(i * 6 + sg, dummy.matrix);
+        trunkMesh.setColorAt(i * 6 + sg, new THREE.Color(sg % 2 === 0 ? TRUNK_BASE : RING_COLS[Math.floor(sg / 2) % 2]));
       }
       var topX = p.x + dx * p.h * Math.sin(lean), topZ = p.z + dz * p.h * Math.sin(lean), topY = p.h * Math.cos(lean);
       dummy.position.set(topX, topY, topZ);
@@ -459,7 +462,7 @@
         var laz = (lf / 9) * Math.PI * 2 + i * 0.7;
         var len = 2.12 + (((i * 9 + lf) * 37) % 100) / 100 * 1.26;
         dummy.position.set(topX + Math.cos(laz) * 0.55, topY + 0.1, topZ + Math.sin(laz) * 0.55);
-        dummy.scale.set(1, len, 0.4);
+        dummy.scale.set(1, len, 0.5);
         dummy.rotation.set(1.9, laz, 0);
         dummy.updateMatrix();
         leafMesh.setMatrixAt(i * 9 + lf, dummy.matrix);
@@ -487,7 +490,7 @@
       if (m.instanceColor) m.instanceColor.needsUpdate = true;
     });
     scene.add(trunkMesh); scene.add(leafMesh); scene.add(crownMesh); scene.add(planterMesh); scene.add(soilMesh);
-    stats.staticInstances += palms.length * 14;
+    stats.staticInstances += palms.length * 18;
 
     // Street lamps: 98 (2 per intersection, diagonal corners, reference §5).
     // Pole + arm + head + bulb, with a crossed halo card and a light pool
@@ -640,16 +643,18 @@
     ];
     boards.forEach(function (bd) {
       var tex2 = districtBoardTexture(bd[0], bd[1]);
-      var panel = new THREE.Mesh(new THREE.PlaneGeometry(14, 2.7),
+      var panel = new THREE.Mesh(new THREE.PlaneGeometry(21, 2.7),
         new THREE.MeshBasicMaterial({ map: tex2 }));
       panel.position.set(bd[2], 8.9, bd[3]);
       panel.rotation.y = bd[4];
       scene.add(panel);
+      // Posts stand on the sidewalk outside the road edge (1.5 past the
+      // 9-unit road half-width), never in the middle of the road.
       var post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 8.9, 6), mat(0x42586a));
-      post.position.set(bd[2] - 6, 4.45, bd[3]);
+      post.position.set(bd[2] - 10.5, 4.45, bd[3]);
       scene.add(post);
       var post2 = post.clone();
-      post2.position.set(bd[2] + 6, 4.45, bd[3]);
+      post2.position.set(bd[2] + 10.5, 4.45, bd[3]);
       scene.add(post2);
     });
 
@@ -762,7 +767,15 @@
     var MAXP = 900;
     var bodyIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.21, 0.24, 0.62, 5), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
     var headIM = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.16, 0), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
-    var legIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.5, 0.2), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
+    // Articulated limbs (reference §10): two legs that swing with the walk
+    // phase, two arms swinging opposite, shoes at the feet — so people read
+    // as jointed figures, not chess pawns.
+    var legLIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.15, 0.5, 0.2), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
+    var legRIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.15, 0.5, 0.2), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
+    var armLIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.11, 0.45, 0.14), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
+    var armRIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.11, 0.45, 0.14), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
+    var shoeLIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.09, 0.3), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
+    var shoeRIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.16, 0.09, 0.3), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
     var pelvisIM = new THREE.InstancedMesh(new THREE.BoxGeometry(0.36, 0.12, 0.22), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
     var hairIM = new THREE.InstancedMesh(new THREE.SphereGeometry(0.17, 8, 6), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP);
     var accIM = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXP * 2);
@@ -770,14 +783,24 @@
       new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16, depthWrite: false }), MAXP);
     bodyIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     headIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    legIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    legLIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    legRIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    armLIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    armRIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    shoeLIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    shoeRIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     pelvisIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     hairIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     accIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     blobIM.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    bodyIM.frustumCulled = false; headIM.frustumCulled = false; legIM.frustumCulled = false;
+    bodyIM.frustumCulled = false; headIM.frustumCulled = false;
+    legLIM.frustumCulled = false; legRIM.frustumCulled = false;
+    armLIM.frustumCulled = false; armRIM.frustumCulled = false;
+    shoeLIM.frustumCulled = false; shoeRIM.frustumCulled = false;
     pelvisIM.frustumCulled = false; hairIM.frustumCulled = false; accIM.frustumCulled = false; blobIM.frustumCulled = false;
-    scene.add(bodyIM); scene.add(headIM); scene.add(legIM);
+    scene.add(bodyIM); scene.add(headIM);
+    scene.add(legLIM); scene.add(legRIM); scene.add(armLIM); scene.add(armRIM);
+    scene.add(shoeLIM); scene.add(shoeRIM);
     scene.add(pelvisIM); scene.add(hairIM); scene.add(accIM); scene.add(blobIM);
     var hideMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
     var tmpColor = new THREE.Color();
@@ -1240,7 +1263,7 @@
       scene.add(spot); scene.add(spotTarget);
       spot.target = spotTarget;
       var cone = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 16, 1, true),
-        new THREE.MeshBasicMaterial({ color: 0xffedb7, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, side: THREE.FrontSide, depthWrite: false }));
+        new THREE.MeshBasicMaterial({ color: 0xffedb7, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
       cone.visible = false;
       scene.add(cone);
       var disk = new THREE.Mesh(new THREE.CircleGeometry(4.5, 20),
@@ -1248,7 +1271,7 @@
       disk.rotation.x = -Math.PI / 2;
       disk.visible = false;
       scene.add(disk);
-      var ring = new THREE.Mesh(new THREE.RingGeometry(4.3, 4.5, 24),
+      var ring = new THREE.Mesh(new THREE.RingGeometry(2.35, 2.72, 24),
         new THREE.MeshBasicMaterial({ color: 0xffe6a2, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
       ring.rotation.x = -Math.PI / 2;
       ring.visible = false;
@@ -1368,7 +1391,7 @@
     // Person color + accessories by role (reference §10).
     function personColor(kind, ref) {
       if (kind === 'hero') return {
-        body: 0x3ca7b6, legs: 0x2a2a33, skin: 0xb9744e, hair: 0x34313d,
+        body: 0x3ca7b6, legs: 0x2a2a33, skin: 0xb9744e, hair: 0x34313d, shoes: 0xf1e8d0,
         acc: [
           { c: 0xe46b4e, x: 0, y: 0.45, z: -0.22, sx: 0.34, sy: 0.42, sz: 0.16 },
           { c: 0xffcf75, x: 0, y: 0.45, z: -0.31, sx: 0.34, sy: 0.08, sz: 0.04 },
@@ -1376,7 +1399,7 @@
         ]
       };
       if (kind === 'officer') return {
-        body: 0x254164, legs: 0x22334e, skin: 0xd8a878, hair: 0x203753,
+        body: 0x254164, legs: 0x22334e, skin: 0xd8a878, hair: 0x203753, shoes: 0x172233,
         acc: [
           { c: 0xf4ce83, x: 0, y: 0.48, z: 0.14, sx: 0.12, sy: 0.08, sz: 0.04 },
           { c: 0x17293e, x: 0, y: 0.1, z: 0.14, sx: 0.36, sy: 0.2, sz: 0.05 },
@@ -1384,34 +1407,60 @@
         ]
       };
       if (kind === 'enemy') return {
-        body: 0x873b47, legs: 0x272b3e, skin: 0xc68c66, hair: 0x322637,
+        body: 0x873b47, legs: 0x272b3e, skin: 0xc68c66, hair: 0x322637, shoes: 0x222222,
         acc: [
           { c: 0xec6976, x: 0, y: 0.48, z: 0.14, sx: 0.14, sy: 0.1, sz: 0.04 },
           { c: 0x2c303e, x: 0.24, y: 0.3, z: 0.1, sx: 0.08, sy: 0.4, sz: 0.06 }
         ]
       };
       if (kind === 'contact') return {
-        body: PH.CHECKPOINT_COLORS[ref % 5], legs: 0x2a2a33, skin: 0xd8a878, hair: PH.CHECKPOINT_COLORS[ref % 5],
+        body: PH.CHECKPOINT_COLORS[ref % 5], legs: 0x2a2a33, skin: 0xd8a878, hair: PH.CHECKPOINT_COLORS[ref % 5], shoes: 0x222222,
         acc: [{ c: 0xffedb8, x: 0, y: 0.48, z: 0.14, sx: 0.12, sy: 0.1, sz: 0.04 }]
       };
       if (kind === 'taxiPassenger') return {
-        body: 0xf8cf69, legs: 0x3a3a44, skin: 0xd8a878, hair: 0x34313d, acc: []
+        body: 0xf8cf69, legs: 0x3a3a44, skin: 0xd8a878, hair: 0x34313d, shoes: 0x222222, acc: []
       };
       if (kind === 'medic') return {
-        body: 0x208e91, legs: 0x275360, skin: 0xc9e6df, hair: 0x1a2a30, acc: []
+        body: 0x208e91, legs: 0x275360, skin: 0xc9e6df, hair: 0x1a2a30, shoes: 0x222222, acc: []
       };
       if (kind === 'towman') return {
-        body: 0xf3ae4c, legs: 0x35465b, skin: 0xc98b65, hair: 0x34313d, acc: []
+        body: 0xf3ae4c, legs: 0x35465b, skin: 0xc98b65, hair: 0x34313d, shoes: 0x222222, acc: []
       };
       if (kind === 'ped') return {
-        body: ref.color, legs: ref.pants, skin: ref.skin, hair: ref.hair, acc: []
+        body: ref.color, legs: ref.pants, skin: ref.skin, hair: ref.hair, shoes: 0x222222, acc: []
       };
-      return { body: 0x888888, legs: 0x333333, skin: 0xc98b65, hair: 0x1a1a1a, acc: [] };
+      return { body: 0x888888, legs: 0x333333, skin: 0xc98b65, hair: 0x1a1a1a, shoes: 0x222222, acc: [] };
     }
     var accSlot = 0;
-    function syncPerson(idx, x, z, y, yaw, size, colors, detail, bobPhase) {
+    function syncPerson(idx, x, z, y, yaw, size, colors, detail, bobPhase, stride) {
       var s = size || 1;
       var bob = detail ? Math.abs(Math.sin((game.time + bobPhase) * 5)) * 0.03 : 0;
+      var swing = (stride || 0) * 0.5 * Math.sin((game.time + bobPhase) * 5);
+      var cos = Math.cos(yaw), sin = Math.sin(yaw);
+      var shoeCol = colors.shoes === undefined ? 0x222222 : colors.shoes;
+      // One limb, swung around its hip/shoulder pivot: the limb centre sits
+      // half its length below the pivot, rotated by the swing angle, so the
+      // legs and arms read as joints that move, not a single pawn block.
+      function limb(mesh, lx, py, len, ang, color) {
+        var ox = lx, oy = py - (len / 2) * Math.cos(ang), oz = -(len / 2) * Math.sin(ang);
+        dummy.position.set(x + (ox * cos + oz * sin) * s, oy * s + bob + y, z + (-ox * sin + oz * cos) * s);
+        dummy.rotation.order = 'YXZ';
+        dummy.rotation.set(ang, yaw, 0);
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(idx, dummy.matrix);
+        mesh.setColorAt(idx, tmpColor.setHex(color));
+        dummy.rotation.order = 'XYZ';
+      }
+      function shoe(mesh, lx, ang) {
+        var fx = lx, fy = 0.49 - 0.5 * Math.cos(ang) + 0.045, fz = -0.5 * Math.sin(ang) + 0.05;
+        dummy.position.set(x + (fx * cos + fz * sin) * s, fy * s + bob + y, z + (-fx * sin + fz * cos) * s);
+        dummy.rotation.set(0, yaw, 0);
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(idx, dummy.matrix);
+        mesh.setColorAt(idx, tmpColor.setHex(shoeCol));
+      }
       dummy.position.set(x, 0.55 * s + bob + y, z);
       dummy.rotation.set(0, yaw, 0);
       dummy.scale.set(s, s, s);
@@ -1424,12 +1473,13 @@
       dummy.updateMatrix();
       headIM.setMatrixAt(idx, dummy.matrix);
       headIM.setColorAt(idx, tmpColor.setHex(colors.skin));
-      dummy.position.set(x, 0.24 * s + bob + y, z);
-      dummy.rotation.set(0, yaw, 0);
-      dummy.scale.set(s, s, s);
-      dummy.updateMatrix();
-      legIM.setMatrixAt(idx, dummy.matrix);
-      legIM.setColorAt(idx, tmpColor.setHex(colors.legs));
+      // Legs swing opposite each other; arms swing opposite their own side's leg.
+      limb(legLIM, -0.09, 0.49, 0.5, -swing, colors.legs);
+      limb(legRIM, 0.09, 0.49, 0.5, swing, colors.legs);
+      limb(armLIM, -0.28, 0.8, 0.45, swing, colors.body);
+      limb(armRIM, 0.28, 0.8, 0.45, -swing, colors.body);
+      shoe(shoeLIM, -0.09, -swing);
+      shoe(shoeRIM, 0.09, swing);
       // Pelvis block connects the waist so legs never detach (reference §10).
       dummy.position.set(x, 0.31 * s + bob + y, z);
       dummy.rotation.set(0, yaw, 0);
@@ -1445,7 +1495,6 @@
       hairIM.setMatrixAt(idx, dummy.matrix);
       hairIM.setColorAt(idx, tmpColor.setHex(colors.hair));
       // Accessories in person-local space (x right, z forward).
-      var cos = Math.cos(yaw), sin = Math.sin(yaw);
       (colors.acc || []).forEach(function (a) {
         if (accSlot >= MAXP * 2) return;
         var wx = x + (a.x * cos + a.z * sin) * s;
@@ -1538,7 +1587,8 @@
       function personVisible(x, z) { return dist(x, z, camX, camZ) < CROWD_RANGE; }
       // Hero: drawn on foot or on a bike; inside a car the cabin hides them.
       if (p.vehicle === null || p.bike) {
-        syncPerson(idx++, p.x, p.z, p.y, p.yaw, 1.12, personColor('hero'), true, 0);
+        var heroStride = p.bike ? 0 : Math.min(1, Math.abs(p.speed || 0) / 4);
+        syncPerson(idx++, p.x, p.z, p.y, p.yaw, 1.12, personColor('hero'), true, 0, heroStride);
       }
       // Pedestrians.
       for (var pi = 0; pi < game.peds.length && idx < MAXP; pi++) {
@@ -1546,32 +1596,32 @@
         if (ped.down) continue;
         if (!personVisible(ped.x, ped.z)) continue;
         var detail = dist(ped.x, ped.z, camX, camZ) < DETAIL_DIST;
-        syncPerson(idx++, ped.x, ped.z, 0, ped.yaw, ped.size, personColor('ped', ped), detail, ped.id);
+        syncPerson(idx++, ped.x, ped.z, 0, ped.yaw, ped.size, personColor('ped', ped), detail, ped.id, 1);
       }
       // Police foot officers.
       for (var oi = 0; oi < game.police.length && idx < MAXP; oi++) {
         var off = game.police[oi];
         if (!off.foot || off.state === 'down') continue;
         if (!personVisible(off.x, off.z)) continue;
-        syncPerson(idx++, off.x, off.z, 0, off.yaw, 1.04, personColor('officer'), true, oi + 40);
+        syncPerson(idx++, off.x, off.z, 0, off.yaw, 1.04, personColor('officer'), true, oi + 40, 1);
       }
       // Enemies.
       for (var ei = 0; ei < game.enemies.length && idx < MAXP; ei++) {
         var en = game.enemies[ei];
         if (en.down) continue;
         if (!personVisible(en.x, en.z)) continue;
-        syncPerson(idx++, en.x, en.z, 0, 0, 1.0, personColor('enemy'), true, ei + 80);
+        syncPerson(idx++, en.x, en.z, 0, 0, 1.0, personColor('enemy'), true, ei + 80, 0.8);
       }
       // Contacts (Mara etc.) as gold-striped figures.
       for (var ci = 0; ci < PH.CONTACTS.length && idx < MAXP; ci++) {
         var ct = PH.CONTACTS[ci];
         if (ct.kind !== 'contact') continue;
         if (!personVisible(ct.x, ct.z)) continue;
-        syncPerson(idx++, ct.x, ct.z, 0, 0, 1.0, personColor('contact', ci), true, ci + 120);
+        syncPerson(idx++, ct.x, ct.z, 0, 0, 1.0, personColor('contact', ci), true, ci + 120, 0);
       }
       // Taxi passenger.
       if (game.taxiWait && idx < MAXP && personVisible(game.taxiWait.x, game.taxiWait.z)) {
-        syncPerson(idx++, game.taxiWait.x, game.taxiWait.z, 0, 0, 1.0, personColor('taxiPassenger'), true, 200);
+        syncPerson(idx++, game.taxiWait.x, game.taxiWait.z, 0, 0, 1.0, personColor('taxiPassenger'), true, 200, 0);
       }
       // Emergency staff: a kneeling medic beside the casualty while an
       // ambulance treats; a tow operator beside the truck while it hooks.
@@ -1579,9 +1629,9 @@
         for (var ei2 = 0; ei2 < game.emergency.units.length && idx < MAXP; ei2++) {
           var eu2 = game.emergency.units[ei2];
           if (eu2.kind === 'ambulance' && eu2.state === 'treat' && eu2.target && personVisible(eu2.target.x, eu2.target.z)) {
-            syncPerson(idx++, eu2.target.x + 1.2, eu2.target.z, 0, 0, 0.7, personColor('medic'), false, 400);
+            syncPerson(idx++, eu2.target.x + 1.2, eu2.target.z, 0, 0, 0.7, personColor('medic'), false, 400, 0);
           } else if (eu2.kind === 'tow' && (eu2.state === 'hook' || eu2.state === 'return') && eu2.car && personVisible(eu2.x, eu2.z)) {
-            syncPerson(idx++, eu2.x - Math.cos(eu2.yaw) * 3, eu2.z - Math.sin(eu2.yaw) * 3, 0, eu2.yaw, 1.0, personColor('towman'), true, 420);
+            syncPerson(idx++, eu2.x - Math.cos(eu2.yaw) * 3, eu2.z - Math.sin(eu2.yaw) * 3, 0, eu2.yaw, 1.0, personColor('towman'), true, 420, 0.6);
           }
         }
       }
@@ -1591,7 +1641,7 @@
           var bg = game.beachgoers[bi];
           if (bg.hidden) continue;
           if (!personVisible(bg.x, bg.z)) continue;
-          syncPerson(idx++, bg.x, bg.z, 0, bg.yaw, 0.95, { body: bg.color, legs: 0xd8a878, skin: 0xd8a878, hair: 0x34313d, acc: [] }, true, bi + 300);
+          syncPerson(idx++, bg.x, bg.z, 0, bg.yaw, 0.95, { body: bg.color, legs: 0xd8a878, skin: 0xd8a878, hair: 0x34313d, acc: [] }, true, bi + 300, 0.8);
         }
       }
       for (var hi2 = idx; hi2 < MAXP; hi2++) {
@@ -1658,9 +1708,9 @@
           // Headlight cones at night for occupied cars (reference §5/§8.1).
           var hOn = plnNightF > 0.25 && !!car.driver;
           for (var ci = 0; ci < ud.extras.cones.length; ci++) ud.extras.cones[ci].visible = hOn;
-          ud.extras.coneMat.opacity = 0.14 * plnNightF;
+          ud.extras.coneMat.opacity = 0.32 * plnNightF;
           ud.extras.pool.visible = hOn;
-          ud.extras.poolMat.opacity = 0.2 * plnNightF;
+          ud.extras.poolMat.opacity = 0.3 * plnNightF;
         }
         if (ud.extras && ud.extras.rider) ud.extras.rider.visible = !!car.driver;
         if (ud.extras && ud.extras.foam) ud.extras.foam.visible = (car.speed || 0) > 3;
@@ -1702,7 +1752,7 @@
       for (var pci = 0; pci < game.police.length; pci++) {
         var unit = game.police[pci];
         if (unit.foot) continue;
-        var fake = { id: 5000 + pci, type: 'sedan', color: 0xeff0eb, x: unit.x, z: unit.z, yaw: unit.yaw, speed: unit.speed, police: true, chase: unit.state === 'chase' };
+        var fake = { id: 5000 + pci, type: 'sedan', color: 0xeff0eb, x: unit.x, z: unit.z, yaw: unit.yaw, speed: unit.speed, police: true, chase: unit.state === 'chase', driver: true };
         syncCar(fake);
       }
       // Emergency units.
@@ -1710,7 +1760,7 @@
         for (var eui = 0; eui < game.emergency.units.length; eui++) {
           var eu = game.emergency.units[eui];
           var etype = eu.kind === 'tow' ? 'tow' : 'ambulance';
-          var fake2 = { id: 6000 + eui, type: etype, color: eu.color, x: eu.x, z: eu.z, yaw: eu.yaw, speed: eu.speed, unit: eu };
+          var fake2 = { id: 6000 + eui, type: etype, color: eu.color, x: eu.x, z: eu.z, yaw: eu.yaw, speed: eu.speed, unit: eu, driver: true };
           syncCar(fake2);
         }
       }
@@ -1751,13 +1801,16 @@
             ud.spotTarget.position.set(h.spotTarget.x, 0, h.spotTarget.z);
             ud.spot.intensity = 210 * share;
             // Additive cone stretched heli-to-ground: length = heli height,
-            // radius from the 0.12 rad half-angle.
+            // base radius = the spotlight pool radius (4.5 driving, 3.2 on
+            // foot), opacity split by litShare like the disc (reference §9).
             var dx = h.x - h.spotTarget.x, dy = h.y - 0, dz = h.z - h.spotTarget.z;
             var len = Math.sqrt(dx * dx + dy * dy + dz * dz);
             ud.cone.position.set((h.x + h.spotTarget.x) / 2, h.y / 2, (h.z + h.spotTarget.z) / 2);
             ud.cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
               new THREE.Vector3(dx / len, dy / len, dz / len));
-            ud.cone.scale.set(len * 0.1206, len, len * 0.1206);
+            var spotR = h.spotRadius || 4.5;
+            ud.cone.scale.set(spotR, len, spotR);
+            ud.cone.material.opacity = 0.15 * share;
             ud.cone.visible = true;
             ud.disk.position.set(h.spotTarget.x, 0.12, h.spotTarget.z);
             ud.disk.scale.setScalar((h.spotRadius || 4.5) / 4.5);
