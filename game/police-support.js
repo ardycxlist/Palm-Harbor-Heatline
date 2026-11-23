@@ -162,6 +162,7 @@
     var p = this.player;
     // Episode bookkeeping: foot cap at 1 star is 2 or 3, rolled once per episode.
     if (stars === 0) {
+      this.episodeActive = false;
       this.footCap1 = undefined;
       this.search = Math.max(0, this.search - dt / 12);
       for (var i = this.police.length - 1; i >= 0; i--) {
@@ -177,12 +178,27 @@
       }
       return;
     }
+    // A new wanted episode opens with the search meter full (memo §2.7):
+    // search is the episode timer — pinned at 1 while seen, decaying
+    // while unseen. Without this, an episode that starts unseen (a stolen
+    // car with no cop in sight) would end on its first tick.
+    if (!this.episodeActive) { this.episodeActive = true; this.search = 1; }
     if (this.footCap1 === undefined) this.footCap1 = this.r() < 0.5 ? 2 : 3;
     // Decay search while unseen; standing >= 50 in this district speeds it up.
     var decayMult = 1;
     if (PH.standingDecayMult) decayMult = PH.standingDecayMult(this.districtAt());
     if (this.heatCooldown > 0) this.search = 1;
     else this.search = Math.max(0, this.search - dt / (12 + stars * 3) * decayMult);
+    // Episode end: unseen for the full decay — the heat is off (memo §2.7:
+    // wantedKills resets when the episode ends). Before this fix nothing
+    // ever cleared wantedKills/heat, so the player stayed wanted forever
+    // and mission 4's evade step (stars must be 0) could never complete.
+    if (this.search <= 0) {
+      this.wantedKills = 0; this.heat = 0; this.search = 0;
+      this.episodeActive = false; this.footCap1 = undefined;
+      this.events.push({ kind: 'notify', text: 'CITY WATCH / CLEAR — you lost them.', t: this.time });
+      return;
+    }
     // Spawn cars up to the cap.
     var cars = 0, feet = 0;
     for (var j = 0; j < this.police.length; j++) {
