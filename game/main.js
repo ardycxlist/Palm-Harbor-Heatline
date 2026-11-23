@@ -41,8 +41,14 @@
     return sedan;
   }
   function applyShotPreset(mode) {
-    game.mission.active = true;
+    // Every preset except mission shows the next contract as the active
+    // objective. Mission is the exception: it starts for real, through
+    // interact() at Mara, so its active flag stays false until then.
+    if (mode !== 'mission') game.mission.active = true;
     if (mode === 'city') {
+      // Park the teal courier sedan on the road ahead in frame (z=35)
+      // instead of leaving it half out of the left edge at its spawn.
+      moveSedanTo(0, 35);
       // Hero on the east sidewalk of the x=0 road (inset 12, free ground
       // at z=5), facing south down the street: the road and its traffic
       // run down the right of the frame, the east facades and the palm
@@ -55,22 +61,25 @@
       game.toggleCar();
       shotSpeedTarget = 10; // 40 KM/H on the HUD
     } else if (mode === 'mission') {
-      // Stand west of Mara facing her: the courier sedan at (19, 6.5) stays
-      // out of the sightline, the crystal + contact fill the frame. Camera
-      // in close at 7 so the hero reads at full height instead of a small
-      // figure in the distance.
-      game.player.x = 14; game.player.z = 12;
-      game.player.yaw = 0;
+      // Real path, nothing faked: the hero stands southeast of Mara
+      // (7.07 units — inside the 9-unit interact range) facing northwest
+      // toward her, so the intersection beyond her fills the frame and
+      // the grey wall behind her stays out of the sightline. Camera in
+      // close at 7 so the hero reads at full height instead of a small
+      // figure in the distance. After 5 s interact() starts the contract
+      // for real: startMission() pushes the intro + 3 dialog events as
+      // BRIEF toasts (4.5 s each) — screenshot inside that window, ~7 s
+      // after load.
+      game.player.x = 24; game.player.z = 17;
+      game.player.yaw = -2.36;
       input.zoom = 7;
-      game.taxiWait = PH.TAXI_SPOTS[0];
-      game.events.push({ kind: 'notify', text: 'MARA / Meet me at the coral phone. Your courier car is parked by the road.', t: game.time });
-      game.events.push({ kind: 'notify', text: 'TAXI / a passenger is waiting in OLD QUARTER — pick them up by car.', t: game.time });
+      setTimeout(function () { game.interact(); }, 5000);
     } else if (mode === 'night') {
       game.clock = 19 + 31 / 60;
       game.wantedKills = 12; game.casualties = 12;
       game.search = 1; game.heat = 1;
-      moveSedanTo(0, -40);
-      game.player.x = 0; game.player.z = -40;
+      moveSedanTo(0, -60);
+      game.player.x = 0; game.player.z = -60;
       game.toggleCar();
       shotSpeedTarget = 20.5; // 82 KM/H on the HUD
       var car = game.getCar();
@@ -80,13 +89,13 @@
       }
       if (car) { car.speed = shotSpeedTarget; car.yaw = Math.PI / 2; }
       // The warm-up drive heads +z; put the car back on the x=0 road at
-      // z=-40 and head it +z (south) so the shot stays in OLD QUARTER for
-      // the whole wait: from -40 the PORT SOL border (z > 124) is 164 units
-      // away, ~8 sim-seconds, and the south drive keeps the heli beams
+      // z=-60 and head it +z (south) so the shot stays in OLD QUARTER for
+      // the whole wait: from -60 the PORT SOL border (z > 124) is 184 units
+      // away, ~9 sim-seconds, and the south drive keeps the heli beams
       // crossing the frame toward the camera (a north drive hides them
-      // behind it). District at z=-40 is OLD QUARTER.
-      if (car) { car.x = 0; car.z = -40; car.yaw = Math.PI / 2; }
-      game.player.x = 0; game.player.z = -40; game.player.yaw = Math.PI / 2;
+      // behind it). District at z=-60 is OLD QUARTER.
+      if (car) { car.x = 0; car.z = -60; car.yaw = Math.PI / 2; }
+      game.player.x = 0; game.player.z = -60; game.player.yaw = Math.PI / 2;
       // Pull the camera back for the night shot: from the close chase cam
       // the spotlight cone fills the frame as a wash; from 18 units back it
       // reads as a beam from the heli to the pool on the street.
