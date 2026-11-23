@@ -49,9 +49,12 @@
       shotSpeedTarget = 10; // 40 KM/H on the HUD
     } else if (mode === 'mission') {
       // Stand west of Mara facing her: the courier sedan at (19, 6.5) stays
-      // out of the sightline, the crystal + contact fill the frame.
+      // out of the sightline, the crystal + contact fill the frame. Camera
+      // pulled back to 12 so the palm at (12,12) reads as a palm with its
+      // crown instead of a close trunk, and the crystal reads smaller.
       game.player.x = 14; game.player.z = 12;
       game.player.yaw = 0;
+      input.zoom = 12;
       game.taxiWait = PH.TAXI_SPOTS[0];
       game.events.push({ kind: 'notify', text: 'MARA / Meet me at the coral phone. Your courier car is parked by the road.', t: game.time });
       game.events.push({ kind: 'notify', text: 'TAXI / a passenger is waiting in OLD QUARTER — pick them up by car.', t: game.time });
@@ -59,8 +62,8 @@
       game.clock = 19 + 31 / 60;
       game.wantedKills = 12; game.casualties = 12;
       game.search = 1; game.heat = 1;
-      moveSedanTo(0, 50);
-      game.player.x = 0; game.player.z = 50;
+      moveSedanTo(0, -40);
+      game.player.x = 0; game.player.z = -40;
       game.toggleCar();
       shotSpeedTarget = 20.5; // 82 KM/H on the HUD
       var car = game.getCar();
@@ -69,10 +72,14 @@
         game.update(1 / 60, { forward: true });
       }
       if (car) { car.speed = shotSpeedTarget; car.yaw = Math.PI / 2; }
-      // The warm-up drive heads +z out of OLD QUARTER; put the car back on
-      // the x=0 road at z=50 so the shot stays in OLD QUARTER.
-      if (car) { car.x = 0; car.z = 50; car.yaw = Math.PI / 2; }
-      game.player.x = 0; game.player.z = 50; game.player.yaw = Math.PI / 2;
+      // The warm-up drive heads +z; put the car back on the x=0 road at
+      // z=-40 and head it +z (south) so the shot stays in OLD QUARTER for
+      // the whole wait: from -40 the PORT SOL border (z > 124) is 164 units
+      // away, ~8 sim-seconds, and the south drive keeps the heli beams
+      // crossing the frame toward the camera (a north drive hides them
+      // behind it). District at z=-40 is OLD QUARTER.
+      if (car) { car.x = 0; car.z = -40; car.yaw = Math.PI / 2; }
+      game.player.x = 0; game.player.z = -40; game.player.yaw = Math.PI / 2;
       // Pull the camera back for the night shot: from the close chase cam
       // the spotlight cone fills the frame as a wash; from 18 units back it
       // reads as a beam from the heli to the pool on the street.
