@@ -61,19 +61,25 @@
       game.toggleCar();
       shotSpeedTarget = 10; // 40 KM/H on the HUD
     } else if (mode === 'mission') {
-      // Real path, nothing faked: the hero stands southeast of Mara
-      // (7.07 units — inside the 9-unit interact range) facing northwest
-      // toward her, so the intersection beyond her fills the frame and
-      // the grey wall behind her stays out of the sightline. Camera in
-      // close at 7 so the hero reads at full height instead of a small
-      // figure in the distance. After 5 s interact() starts the contract
-      // for real: startMission() pushes the intro + 3 dialog events as
-      // BRIEF toasts (4.5 s each) — screenshot inside that window, ~7 s
-      // after load.
-      game.player.x = 24; game.player.z = 17;
-      game.player.yaw = -2.36;
+      // Real path, nothing faked: the hero stands on the sidewalk corner
+      // at (12,8), 8.06 units from Mara — inside the 9-unit interact
+      // range — facing her diagonally (yaw 0.52), so the camera behind
+      // lands on the open intersection instead of inside a building, and
+      // the frame shows the road corner, the sidewalk, Mara and the
+      // objective marker at an angle instead of a flat wall head-on.
+      // Camera in close at 7 so the hero reads at full height instead of
+      // a small figure in the distance. Interact is tied to the load
+      // event (+3 s), not to script eval: under SwiftShader the page
+      // load itself is slow, so an eval-based timer fires before the
+      // scene is up and the dialogue toasts expire unseen. startMission()
+      // pushes the intro + 3 dialog events as BRIEF toasts (4.5 s each)
+      // — screenshot inside that window, ~load+5 s.
+      game.player.x = 12; game.player.z = 8;
+      game.player.yaw = 0.52;
       input.zoom = 7;
-      setTimeout(function () { game.interact(); }, 5000);
+      window.addEventListener('load', function () {
+        setTimeout(function () { game.interact(); }, 3000);
+      });
     } else if (mode === 'night') {
       game.clock = 19 + 31 / 60;
       game.wantedKills = 12; game.casualties = 12;
